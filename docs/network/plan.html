@@ -1,0 +1,2187 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Spaceship Manifesto Network</title>
+  <meta name="claude:viewport-fit-sides" content="cover" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" />
+  <style>
+    :root {
+      /* Layout: one 72ch reading column; diagrams and tables widen to 1040px and scroll sideways inside their own box on phones. Spaceship's own language: mono, black/white ink in steps, orange only for what is live. */
+      --bg: #000;
+      --ink: #fff;
+      --ink-2: rgb(255 255 255 / 0.7);
+      --ink-3: rgb(255 255 255 / 0.48);
+      --ink-4: rgb(255 255 255 / 0.24);
+      --ink-5: rgb(255 255 255 / 0.08);
+      --hot: #ff5a1f;
+      --hot-wash: rgb(255 90 31 / 0.18);
+      --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --text: 14px;
+      --small: 12px;
+      --label: 11px;
+      --h2: 18px;
+      --h1: 28px;
+      --gap: 8px;
+      --hair: 1px;
+      color-scheme: dark;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        --bg: #fff;
+        --ink: #000;
+        --ink-2: rgb(0 0 0 / 0.72);
+        --ink-3: rgb(0 0 0 / 0.56);
+        --ink-4: rgb(0 0 0 / 0.26);
+        --ink-5: rgb(0 0 0 / 0.06);
+        --hot: #c8400c;
+        --hot-wash: rgb(200 64 12 / 0.12);
+        color-scheme: light;
+      }
+    }
+    :root[data-theme="light"] {
+      --bg: #fff;
+      --ink: #000;
+      --ink-2: rgb(0 0 0 / 0.72);
+      --ink-3: rgb(0 0 0 / 0.56);
+      --ink-4: rgb(0 0 0 / 0.26);
+      --ink-5: rgb(0 0 0 / 0.06);
+      --hot: #c8400c;
+      --hot-wash: rgb(200 64 12 / 0.12);
+      color-scheme: light;
+    }
+    :root[data-theme="dark"] {
+      --bg: #000;
+      --ink: #fff;
+      --ink-2: rgb(255 255 255 / 0.7);
+      --ink-3: rgb(255 255 255 / 0.48);
+      --ink-4: rgb(255 255 255 / 0.24);
+      --ink-5: rgb(255 255 255 / 0.08);
+      --hot: #ff5a1f;
+      --hot-wash: rgb(255 90 31 / 0.18);
+      color-scheme: dark;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--ink-2);
+      font: var(--text) / 1.65 var(--mono);
+      padding-left: max(16px, env(safe-area-inset-left, 0px));
+      padding-right: max(16px, env(safe-area-inset-right, 0px));
+      padding-block: 48px 72px;
+      -webkit-font-smoothing: antialiased;
+    }
+    main {
+      max-width: 1040px;
+      margin-inline: auto;
+      display: grid;
+      gap: 64px;
+    }
+    section,
+    header {
+      display: grid;
+      gap: 20px;
+      min-width: 0;
+    }
+    p,
+    ul,
+    ol,
+    dl,
+    h1,
+    h2,
+    h3,
+    figure,
+    pre {
+      margin: 0;
+    }
+    p,
+    li {
+      max-width: 72ch;
+    }
+    strong,
+    b,
+    h1,
+    h2,
+    h3,
+    th,
+    dt {
+      color: var(--ink);
+    }
+    h1 {
+      font-size: var(--h1);
+      line-height: 1.2;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      text-wrap: balance;
+    }
+    h2 {
+      font-size: var(--h2);
+      font-weight: 600;
+      line-height: 1.3;
+      text-wrap: balance;
+      padding-top: 20px;
+      border-top: var(--hair) solid var(--ink-4);
+    }
+    h3 {
+      font-size: var(--text);
+      font-weight: 600;
+    }
+    a {
+      color: var(--ink);
+      text-underline-offset: 3px;
+      text-decoration-color: var(--ink-4);
+    }
+    a:hover {
+      text-decoration-color: var(--hot);
+    }
+    :focus-visible {
+      outline: 2px solid var(--hot);
+      outline-offset: 2px;
+    }
+    code {
+      font-family: inherit;
+      color: var(--ink);
+    }
+    .eyebrow,
+    .lbl {
+      font-size: var(--label);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+    }
+    .lede {
+      color: var(--ink);
+      font-size: 15px;
+    }
+    .hot {
+      color: var(--hot);
+    }
+    ul,
+    ol {
+      padding-left: 2.5ch;
+      display: grid;
+      gap: 6px;
+    }
+    li::marker {
+      color: var(--ink-3);
+    }
+
+    nav ol {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 20px;
+      padding: 0;
+      list-style: none;
+      font-size: var(--small);
+    }
+
+    .glance {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+      border-top: var(--hair) solid var(--ink-4);
+      border-left: var(--hair) solid var(--ink-4);
+    }
+    .glance div {
+      display: grid;
+      gap: 2px;
+      align-content: start;
+      padding: 12px 14px;
+      border-right: var(--hair) solid var(--ink-4);
+      border-bottom: var(--hair) solid var(--ink-4);
+      min-width: 0;
+    }
+    .glance dt {
+      font-size: var(--label);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .glance dd {
+      margin: 0;
+      color: var(--ink);
+    }
+
+    .type {
+      display: inline-block;
+      font-size: var(--label);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink);
+      border: var(--hair) solid var(--ink-3);
+      padding: 0 6px;
+      line-height: 1.6;
+      white-space: nowrap;
+    }
+
+    figure {
+      display: grid;
+      gap: 12px;
+      min-width: 0;
+    }
+    figcaption {
+      font-size: var(--small);
+      color: var(--ink-3);
+      max-width: 80ch;
+    }
+    .diagram {
+      overflow-x: auto;
+      border: var(--hair) solid var(--ink-5);
+      padding: 12px;
+    }
+    .diagram svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      min-width: 760px;
+    }
+    .diagram.narrow svg {
+      min-width: 560px;
+    }
+    .diagram.compact svg {
+      min-width: 480px;
+      max-width: 640px;
+    }
+    svg text {
+      font-family: var(--mono);
+      font-size: 12px;
+      fill: var(--ink-2);
+    }
+    svg .t-strong {
+      fill: var(--ink);
+      font-weight: 600;
+    }
+    svg .t-small {
+      font-size: 11px;
+    }
+    svg .t-lbl {
+      font-size: 10.5px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      fill: var(--ink-3);
+    }
+    svg .t-hot {
+      fill: var(--hot);
+    }
+    svg .t-doc {
+      fill: var(--ink);
+    }
+    svg .cursor-box {
+      fill: var(--hot-wash);
+      stroke: var(--hot);
+      stroke-width: 1.25;
+    }
+    svg .shade {
+      fill: var(--ink-5);
+    }
+    svg .box {
+      fill: var(--bg);
+      stroke: var(--ink-3);
+      stroke-width: 1;
+    }
+    svg .box-strong {
+      stroke: var(--ink);
+    }
+    svg .box-hot {
+      fill: var(--bg);
+      stroke: var(--hot);
+      stroke-width: 1.5;
+    }
+    svg .frame-outer {
+      fill: none;
+      stroke: var(--ink-4);
+      stroke-width: 1;
+      stroke-dasharray: 4 4;
+    }
+    svg .frame {
+      fill: var(--bg);
+      stroke: var(--ink-3);
+      stroke-width: 1;
+    }
+    svg .line {
+      fill: none;
+      stroke: var(--ink-2);
+      stroke-width: 1.25;
+    }
+    svg .line-hot {
+      fill: none;
+      stroke: var(--hot);
+      stroke-width: 1.5;
+    }
+    svg .dashed {
+      stroke-dasharray: 4 3;
+    }
+    svg .life {
+      stroke: var(--ink-4);
+      stroke-width: 1;
+      stroke-dasharray: 2 4;
+    }
+    svg .faint {
+      fill: none;
+      stroke: var(--ink-4);
+      stroke-width: 1;
+    }
+    svg .fill-ink {
+      fill: var(--ink-2);
+    }
+    svg .fill-hot {
+      fill: var(--hot);
+    }
+    svg .wash {
+      fill: var(--hot-wash);
+      stroke: none;
+    }
+    svg .knob {
+      fill: var(--bg);
+      stroke: var(--ink);
+      stroke-width: 1.5;
+    }
+    svg .knob-hot {
+      fill: var(--hot-wash);
+      stroke: var(--hot);
+      stroke-width: 1.5;
+    }
+    svg .pip {
+      fill: var(--ink);
+    }
+
+    #topology-svg .spot {
+      cursor: pointer;
+      outline: none;
+    }
+    #topology-svg .hit {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 18;
+      pointer-events: stroke;
+    }
+    #topology-svg .hit-box {
+      fill: transparent;
+    }
+    #topology-svg :is(.hit-box, .frame-outer) {
+      pointer-events: all;
+    }
+    #topology-svg .spot:is(:hover, :focus-visible) :is(.shape, .line) {
+      stroke: var(--ink);
+    }
+    #topology-svg .spot:is(:hover, :focus-visible) .line-hot {
+      stroke-width: 2.5;
+    }
+    #topology-svg .spot:is(:hover, :focus-visible) text:not(.t-hot) {
+      fill: var(--ink);
+    }
+    #topology-svg .route-hot,
+    #topology-svg .role-editor {
+      display: none;
+    }
+    :is(#topology-svg[data-active="B"] [data-for="B"], #topology-svg[data-active="C"] [data-for="C"], #topology-svg[data-active="D"] [data-for="D"])
+      :is(.route-hot, .role-editor) {
+      display: inline;
+    }
+    :is(#topology-svg[data-active="B"] [data-for="B"], #topology-svg[data-active="C"] [data-for="C"], #topology-svg[data-active="D"] [data-for="D"])
+      .role-view {
+      display: none;
+    }
+    :is(#topology-svg[data-active="B"] [data-for="B"], #topology-svg[data-active="C"] [data-for="C"], #topology-svg[data-active="D"] [data-for="D"]) .frame {
+      stroke: var(--hot);
+      stroke-width: 2;
+    }
+    #topology-svg .spot.is-selected :is(.shape, .line) {
+      stroke: var(--hot);
+      stroke-width: 2;
+    }
+    #topology-svg .spot.is-selected .line-hot {
+      stroke-width: 3;
+    }
+    #topology-svg .spot.is-selected .fillable {
+      fill: var(--hot-wash);
+    }
+    #topology-svg .spot.is-selected text:not(.t-hot) {
+      fill: var(--ink);
+    }
+    #topology-svg .spot.is-selected text.t-lbl {
+      fill: var(--hot);
+    }
+
+    .hint {
+      font-size: var(--small);
+      color: var(--ink-3);
+    }
+    .arch {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .arch {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+    .arch .diagram svg {
+      min-width: 560px;
+    }
+    #topology-svg text {
+      font-size: 13px;
+    }
+    #topology-svg .t-small {
+      font-size: 12px;
+    }
+    #topology-svg .t-lbl {
+      font-size: 11px;
+    }
+    .info-panel {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+      min-width: 0;
+      padding: 14px 16px 16px;
+      border: var(--hair) solid var(--ink-4);
+      border-top: 2px solid var(--hot);
+      font-size: var(--small);
+      line-height: 1.6;
+    }
+    #info-title {
+      font-size: 15px;
+      line-height: 1.3;
+    }
+    .info-body {
+      display: grid;
+      gap: 10px;
+    }
+    .info-body p {
+      max-width: none;
+    }
+    .info-body pre {
+      font-size: 11.5px;
+      padding: 10px 12px;
+    }
+    .facts {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 5px 14px;
+    }
+    .facts dt {
+      color: var(--ink-3);
+    }
+    .facts dd {
+      margin: 0;
+      color: var(--ink);
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .files {
+      color: var(--ink-3);
+      font-size: var(--label);
+    }
+    .turn-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .turn-controls .lbl {
+      margin-right: 6px;
+    }
+    button {
+      font: inherit;
+      font-size: var(--small);
+      color: var(--ink-2);
+      background: var(--bg);
+      border: var(--hair) solid var(--ink-4);
+      padding: 4px 12px;
+      cursor: pointer;
+    }
+    button:hover {
+      color: var(--ink);
+      border-color: var(--ink-2);
+    }
+    button[aria-pressed="true"] {
+      color: var(--bg);
+      background: var(--ink);
+      border-color: var(--ink);
+    }
+    button.ok {
+      margin-left: auto;
+      color: var(--hot);
+      border-color: var(--hot);
+    }
+    button.ok:hover {
+      background: var(--hot-wash);
+    }
+    #turn-caption {
+      font-size: var(--small);
+      color: var(--ink);
+    }
+
+    .manuscript {
+      border: var(--hair) solid var(--ink-5);
+      padding: 28px 18px 18px;
+      line-height: 2.6;
+      color: var(--ink);
+      max-width: none;
+    }
+    .seg {
+      position: relative;
+    }
+    .seg::before {
+      content: attr(data-tag);
+      position: absolute;
+      left: 0;
+      top: -1.7em;
+      font-size: 10px;
+      line-height: 1;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      white-space: nowrap;
+    }
+    .seg.floor {
+      color: var(--ink-3);
+    }
+    .seg.cut {
+      color: var(--ink-4);
+      text-decoration: line-through;
+    }
+    .seg.new {
+      color: var(--hot);
+    }
+    .seg.new::before {
+      color: var(--hot);
+    }
+    .seg.buffer {
+      color: var(--ink-4);
+      text-decoration: underline dotted var(--ink-4);
+      text-underline-offset: 4px;
+    }
+    .caret-knob {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid var(--ink);
+      border-radius: 50%;
+      vertical-align: middle;
+      margin-inline: 4px;
+      position: relative;
+    }
+    .caret-knob::after {
+      content: "";
+      position: absolute;
+      inset: calc(50% - 1px);
+      border-radius: 50%;
+      background: var(--ink);
+    }
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 22px;
+      padding: 0;
+      list-style: none;
+      font-size: var(--small);
+    }
+    .legend li {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .sw {
+      display: inline-block;
+      width: 22px;
+      height: 0;
+      border-top: 2px solid var(--ink);
+    }
+    .sw.floor {
+      border-color: var(--ink-3);
+    }
+    .sw.cut {
+      border-top: 2px solid var(--ink-4);
+    }
+    .sw.new {
+      border-color: var(--hot);
+    }
+    .sw.buffer {
+      border-top: 2px dotted var(--ink-4);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      min-width: 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: var(--small);
+    }
+    th,
+    td {
+      text-align: left;
+      vertical-align: top;
+      padding: 9px 14px 9px 0;
+      border-bottom: var(--hair) solid var(--ink-5);
+    }
+    th {
+      font-weight: 400;
+      font-size: var(--label);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      border-bottom-color: var(--ink-4);
+      white-space: nowrap;
+    }
+    td:first-child {
+      white-space: nowrap;
+    }
+    td code {
+      white-space: nowrap;
+    }
+    .group td {
+      padding-top: 18px;
+      color: var(--hot);
+      font-size: var(--label);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-bottom-color: var(--ink-4);
+    }
+
+    pre {
+      font: 12.5px / 1.6 var(--mono);
+      color: var(--ink);
+      background: var(--ink-5);
+      border: var(--hair) solid var(--ink-5);
+      padding: 14px 16px;
+      overflow-x: auto;
+      min-width: 0;
+    }
+    pre .c {
+      color: var(--ink-3);
+    }
+
+    .split {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+      gap: 24px;
+      align-items: start;
+    }
+    .split > * {
+      min-width: 0;
+    }
+
+    .steps {
+      counter-reset: step;
+      list-style: none;
+      padding: 0;
+      gap: 14px;
+    }
+    .steps li {
+      display: grid;
+      grid-template-columns: 3ch 1fr;
+      gap: 2px 10px;
+      max-width: 80ch;
+    }
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      color: var(--hot);
+      font-weight: 700;
+      grid-row: span 2;
+    }
+    .steps .done {
+      color: var(--ink-3);
+      font-size: var(--small);
+    }
+
+    footer {
+      max-width: 1040px;
+      margin: 64px auto 0;
+      padding-top: 16px;
+      border-top: var(--hair) solid var(--ink-4);
+      font-size: var(--small);
+      color: var(--ink-3);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        transition: none !important;
+      }
+    }
+  </style>
+
+  <main>
+    <header>
+      <p class="eyebrow">Design plan · Spaceship fork · 20 Nov 2026</p>
+      <h1>Spaceship Manifesto Network</h1>
+      <p class="lede">
+        Three Raspberry Pi stations take turns steering one design education manifesto. pA runs the model and keeps the document. Each station drives the
+        existing Spaceship editor from its own ESP32 panel.
+      </p>
+      <nav aria-label="Sections">
+        <ol>
+          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="#turn">One turn</a></li>
+          <li><a href="#document">Shared document</a></li>
+          <li><a href="#steering">Steering</a></li>
+          <li><a href="#hardware">Station hardware</a></li>
+          <li><a href="#server">Server API</a></li>
+          <li><a href="#model">Model</a></li>
+          <li><a href="#pi-setup">Pi setup</a></li>
+          <li><a href="#code">Code changes</a></li>
+          <li><a href="#build">Build order</a></li>
+          <li><a href="#risks">Risks</a></li>
+        </ol>
+      </nav>
+      <dl class="glance">
+        <div>
+          <dt>Clients</dt>
+          <dd>Chromium kiosk on 3 × Raspberry Pi 4</dd>
+        </div>
+        <div>
+          <dt>Server</dt>
+          <dd>pA: one Vite process, Ollama on localhost</dd>
+        </div>
+        <div>
+          <dt>Model</dt>
+          <dd>gpt-oss:20b, set by one constant</dd>
+        </div>
+        <div>
+          <dt>Turns</dt>
+          <dd>pB → pC → pD, OK ends a turn, no fixed end</dd>
+        </div>
+        <div>
+          <dt>History</dt>
+          <dd>A turn can rewrite the previous turn only</dd>
+        </div>
+        <div>
+          <dt>Steering</dt>
+          <dd>Generated from the text and attention boxes, with a lens per station</dd>
+        </div>
+        <div>
+          <dt>Panel</dt>
+          <dd>Classic ESP32 over Web Serial, no mouse; inputs specified by action type</dd>
+        </div>
+        <div>
+          <dt>Waiting stations</dt>
+          <dd>Live text mirror on a read-only page</dd>
+        </div>
+        <div>
+          <dt>Scoring</dt>
+          <dd>Knob pinning only; rail meters and relevance dropped</dd>
+        </div>
+      </dl>
+    </header>
+
+    <section id="architecture" aria-labelledby="architecture-title">
+      <h2 id="architecture-title">Architecture</h2>
+      <p>
+        One process on pA serves the app, keeps track of turns, and passes model calls through to Ollama, which only listens on localhost. The station whose
+        turn it is runs the full editor. The other two show a light view page, and the stations swap pages when OK is pressed.
+      </p>
+      <figure>
+        <div class="turn-controls" role="group" aria-label="Whose turn it is in the diagram">
+          <span class="lbl">Turn</span>
+          <button type="button" data-turn="B" aria-pressed="false">pB</button>
+          <button type="button" data-turn="C" aria-pressed="true">pC</button>
+          <button type="button" data-turn="D" aria-pressed="false">pD</button>
+          <button type="button" id="ok-button" class="ok">OK · pass the turn</button>
+        </div>
+        <p id="turn-caption" aria-live="polite">pC is editing. pB and pD show the live mirror. Only pC sends edits and model calls.</p>
+        <p class="hint">Select any box, line or label. Its details appear in the panel beside the diagram.</p>
+        <div class="arch">
+          <div class="diagram">
+            <svg
+              id="topology-svg"
+              data-active="C"
+              viewBox="0 0 760 500"
+              role="group"
+              aria-label="System diagram. pA runs Ollama, the app server with the turns plugin, and the saved manifesto file. Three Raspberry Pi stations reach the server over the LAN, each with an ESP32 panel on USB serial. Selecting a part or link shows its details in the panel beside the diagram."
+            >
+              <defs>
+                <marker id="ah-t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0L10 5L0 10z" class="fill-ink" />
+                </marker>
+                <marker id="ah-t-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0 0L10 5L0 10z" class="fill-hot" />
+                </marker>
+              </defs>
+
+              <g class="spot" data-info="pa" tabindex="0" role="button" aria-controls="info-panel" aria-label="pA, the server machine">
+                <rect class="frame-outer shape" x="16" y="16" width="728" height="160" />
+                <text class="t-lbl" x="30" y="38">pA · server</text>
+              </g>
+
+              <g class="spot" data-info="ollama" tabindex="0" role="button" aria-controls="info-panel" aria-label="Ollama">
+                <rect class="box shape fillable" x="36" y="60" width="196" height="86" />
+                <text class="t-strong" x="50" y="96">Ollama</text>
+                <text x="50" y="120">gpt-oss:20b</text>
+              </g>
+
+              <g
+                class="spot"
+                data-info="server"
+                tabindex="0"
+                role="button"
+                aria-controls="info-panel"
+                aria-label="App server: Vite preview and the turns plugin"
+              >
+                <rect class="box box-strong shape fillable" x="282" y="60" width="196" height="86" />
+                <text class="t-strong" x="296" y="96">App server :4173</text>
+                <text x="296" y="120">+ turns plugin</text>
+              </g>
+
+              <g class="spot" data-info="store" tabindex="0" role="button" aria-controls="info-panel" aria-label="manifesto.json, the saved manifesto">
+                <rect class="box shape fillable" x="528" y="60" width="196" height="86" />
+                <text class="t-strong" x="542" y="96">manifesto.json</text>
+                <text x="542" y="120">saved on every OK</text>
+              </g>
+
+              <g class="spot" data-info="proxy" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: proxy from the app server to Ollama">
+                <line class="hit" x1="282" y1="103" x2="236" y2="103" />
+                <line class="line" x1="282" y1="103" x2="236" y2="103" marker-end="url(#ah-t)" />
+                <text class="t-small" x="257" y="94" text-anchor="middle">proxy</text>
+              </g>
+
+              <g class="spot" data-info="write" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: the app server saves manifesto.json">
+                <line class="hit" x1="478" y1="103" x2="524" y2="103" />
+                <line class="line" x1="478" y1="103" x2="524" y2="103" marker-end="url(#ah-t)" />
+                <text class="t-small" x="503" y="94" text-anchor="middle">write</text>
+              </g>
+
+              <g class="spot" data-info="lan" tabindex="0" role="button" aria-controls="info-panel" aria-label="The LAN, pa.local port 4173">
+                <rect class="hit-box" x="24" y="186" width="150" height="20" />
+                <text class="t-lbl" x="30" y="200">LAN · pa.local</text>
+              </g>
+
+              <g class="station" data-for="B">
+                <g class="spot" data-info="events" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: events stream from pA to pB">
+                  <polyline class="hit" points="338,146 338,212 127,212 127,286" />
+                  <polyline class="line" points="338,146 338,212 127,212 127,286" marker-end="url(#ah-t)" />
+                  <text class="t-small" x="119" y="262" text-anchor="end">events</text>
+                </g>
+                <g class="route-hot">
+                  <g class="spot" data-info="hot" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: edits and model calls from pB to pA">
+                    <polyline class="hit" points="141,290 141,226 352,226 352,150" />
+                    <polyline class="line-hot" points="141,290 141,226 352,226 352,150" marker-end="url(#ah-t-hot)" />
+                    <text class="t-small t-hot" x="149" y="262">edits · model calls</text>
+                  </g>
+                </g>
+                <g class="spot" data-info="pi" tabindex="0" role="button" aria-controls="info-panel" aria-label="pB, Raspberry Pi station">
+                  <rect class="frame shape fillable" x="34" y="290" width="200" height="80" />
+                  <text class="t-strong" x="48" y="322">pB · Raspberry Pi</text>
+                  <text class="role-view" x="48" y="348">waiting</text>
+                  <text class="role-editor t-hot" x="48" y="348">has the turn</text>
+                </g>
+                <g class="spot" data-info="serial" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: USB serial from mB to pB">
+                  <line class="hit" x1="134" y1="440" x2="134" y2="374" />
+                  <line class="line" x1="134" y1="440" x2="134" y2="374" marker-end="url(#ah-t)" />
+                  <text class="t-small" x="144" y="412">USB serial</text>
+                </g>
+                <g class="spot" data-info="esp" tabindex="0" role="button" aria-controls="info-panel" aria-label="mB, ESP32 panel">
+                  <rect class="box shape fillable" x="44" y="440" width="180" height="46" />
+                  <text class="t-strong" x="58" y="468">mB · ESP32</text>
+                </g>
+              </g>
+
+              <g class="station" data-for="C">
+                <g class="spot" data-info="events" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: events stream from pA to pC">
+                  <polyline class="hit" points="373,146 373,286" />
+                  <polyline class="line" points="373,146 373,286" marker-end="url(#ah-t)" />
+                  <text class="t-small" x="365" y="262" text-anchor="end">events</text>
+                </g>
+                <g class="route-hot">
+                  <g class="spot" data-info="hot" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: edits and model calls from pC to pA">
+                    <polyline class="hit" points="387,290 387,150" />
+                    <polyline class="line-hot" points="387,290 387,150" marker-end="url(#ah-t-hot)" />
+                    <text class="t-small t-hot" x="395" y="262">edits · model calls</text>
+                  </g>
+                </g>
+                <g class="spot" data-info="pi" tabindex="0" role="button" aria-controls="info-panel" aria-label="pC, Raspberry Pi station">
+                  <rect class="frame shape fillable" x="280" y="290" width="200" height="80" />
+                  <text class="t-strong" x="294" y="322">pC · Raspberry Pi</text>
+                  <text class="role-view" x="294" y="348">waiting</text>
+                  <text class="role-editor t-hot" x="294" y="348">has the turn</text>
+                </g>
+                <g class="spot" data-info="serial" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: USB serial from mC to pC">
+                  <line class="hit" x1="380" y1="440" x2="380" y2="374" />
+                  <line class="line" x1="380" y1="440" x2="380" y2="374" marker-end="url(#ah-t)" />
+                  <text class="t-small" x="390" y="412">USB serial</text>
+                </g>
+                <g class="spot" data-info="esp" tabindex="0" role="button" aria-controls="info-panel" aria-label="mC, ESP32 panel">
+                  <rect class="box shape fillable" x="290" y="440" width="180" height="46" />
+                  <text class="t-strong" x="304" y="468">mC · ESP32</text>
+                </g>
+              </g>
+
+              <g class="station" data-for="D">
+                <g class="spot" data-info="events" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: events stream from pA to pD">
+                  <polyline class="hit" points="422,146 422,212 633,212 633,286" />
+                  <polyline class="line" points="422,146 422,212 633,212 633,286" marker-end="url(#ah-t)" />
+                  <text class="t-small" x="641" y="262">events</text>
+                </g>
+                <g class="route-hot">
+                  <g class="spot" data-info="hot" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: edits and model calls from pD to pA">
+                    <polyline class="hit" points="619,290 619,226 408,226 408,150" />
+                    <polyline class="line-hot" points="619,290 619,226 408,226 408,150" marker-end="url(#ah-t-hot)" />
+                    <text class="t-small t-hot" x="611" y="262" text-anchor="end">edits · model calls</text>
+                  </g>
+                </g>
+                <g class="spot" data-info="pi" tabindex="0" role="button" aria-controls="info-panel" aria-label="pD, Raspberry Pi station">
+                  <rect class="frame shape fillable" x="526" y="290" width="200" height="80" />
+                  <text class="t-strong" x="540" y="322">pD · Raspberry Pi</text>
+                  <text class="role-view" x="540" y="348">waiting</text>
+                  <text class="role-editor t-hot" x="540" y="348">has the turn</text>
+                </g>
+                <g class="spot" data-info="serial" tabindex="0" role="button" aria-controls="info-panel" aria-label="Link: USB serial from mD to pD">
+                  <line class="hit" x1="626" y1="440" x2="626" y2="374" />
+                  <line class="line" x1="626" y1="440" x2="626" y2="374" marker-end="url(#ah-t)" />
+                  <text class="t-small" x="636" y="412">USB serial</text>
+                </g>
+                <g class="spot" data-info="esp" tabindex="0" role="button" aria-controls="info-panel" aria-label="mD, ESP32 panel">
+                  <rect class="box shape fillable" x="536" y="440" width="180" height="46" />
+                  <text class="t-strong" x="550" y="468">mD · ESP32</text>
+                </g>
+              </g>
+            </svg>
+          </div>
+          <aside class="info-panel" id="info-panel" aria-labelledby="info-title">
+            <p class="lbl" id="info-kicker">Details</p>
+            <h3 id="info-title" aria-live="polite">Select a part of the diagram</h3>
+            <div id="info-body" class="info-body">
+              <p>Every box, line and label has details here: what it does, what it carries, and what happens when it fails.</p>
+            </div>
+          </aside>
+        </div>
+        <figcaption>
+          Grey lines carry events from pA to every station. The orange line exists only for the active station: its live text, its commit and its model calls.
+          Move the turn with the buttons, and a selected station or link updates to its new role.
+        </figcaption>
+      </figure>
+      <ul>
+        <li>
+          The active station runs today's editor, with its mouse handling replaced by panel actions. Moving generation onto the server would mean rewriting
+          <code>main.ts</code>, which is tangled up with on-screen layout.
+        </li>
+        <li>
+          Server to stations uses Server-Sent Events, and stations to server use plain POST. Both are built into Node and the browser, so there is no WebSocket
+          library to add.
+        </li>
+        <li>
+          On a turn change each Pi swaps pages with <code>location.replace</code>. That costs about a second, and clears all editor state every turn, which
+          helps a Pi 4 that runs for hours.
+        </li>
+        <li>
+          Ollama never listens on the LAN. Stations reach it only through the same-origin <code>/ollama</code> proxy, so there is no CORS setup and no open
+          model port.
+        </li>
+      </ul>
+    </section>
+
+    <section id="turn" aria-labelledby="turn-title">
+      <h2 id="turn-title">One turn</h2>
+      <p>What happens from the moment pC's turn starts until pD takes over.</p>
+      <figure>
+        <div class="diagram">
+          <svg
+            viewBox="0 0 1000 630"
+            role="img"
+            aria-label="Sequence of one turn: the server sends state to all; pC seeds its editor with the locked floor; pC calls the model through the proxy and tokens stream back; pC posts its live text and the server relays it to the views; pC's ESP32 sends ok; pC commits; the server splits the last turn and saves; the server sends the new state; pC switches to the view page and pD to the editor."
+          >
+            <defs>
+              <marker id="ah-s" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0L10 5L0 10z" class="fill-ink" />
+              </marker>
+              <marker id="ah-s-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0L10 5L0 10z" class="fill-hot" />
+              </marker>
+            </defs>
+
+            <rect class="box box-hot" x="30" y="16" width="200" height="40" />
+            <text class="t-strong" x="130" y="41" text-anchor="middle">pC · editor</text>
+            <rect class="box box-strong" x="310" y="16" width="200" height="40" />
+            <text class="t-strong" x="410" y="41" text-anchor="middle">pA · server</text>
+            <rect class="box" x="550" y="16" width="200" height="40" />
+            <text class="t-strong" x="650" y="41" text-anchor="middle">Ollama</text>
+            <rect class="box" x="780" y="16" width="200" height="40" />
+            <text class="t-strong" x="880" y="41" text-anchor="middle">pB, pD · views</text>
+
+            <line class="life" x1="130" y1="56" x2="130" y2="616" />
+            <line class="life" x1="410" y1="56" x2="410" y2="616" />
+            <line class="life" x1="650" y1="56" x2="650" y2="616" />
+            <line class="life" x1="880" y1="56" x2="880" y2="616" />
+
+            <line class="line" x1="410" y1="104" x2="134" y2="104" marker-end="url(#ah-s)" />
+            <text x="270" y="96" text-anchor="middle">state · turns, active C</text>
+            <line class="line" x1="410" y1="104" x2="876" y2="104" marker-end="url(#ah-s)" />
+            <text x="530" y="96" text-anchor="middle">state</text>
+
+            <rect class="box" x="40" y="136" width="270" height="30" />
+            <text class="t-small" x="175" y="155" text-anchor="middle">seed · lock all but the last turn</text>
+
+            <line class="line" x1="130" y1="206" x2="646" y2="206" marker-end="url(#ah-s)" />
+            <text x="270" y="198" text-anchor="middle">model call via /ollama</text>
+            <line class="line dashed" x1="650" y1="246" x2="134" y2="246" marker-end="url(#ah-s)" />
+            <text x="530" y="238" text-anchor="middle">tokens stream back</text>
+
+            <line class="line-hot" x1="130" y1="302" x2="406" y2="302" marker-end="url(#ah-s-hot)" />
+            <text class="t-hot" x="270" y="294" text-anchor="middle">POST /api/live · text after floor</text>
+            <line class="line-hot" x1="410" y1="302" x2="876" y2="302" marker-end="url(#ah-s-hot)" />
+            <text class="t-hot" x="765" y="294" text-anchor="middle">live · ~5/s</text>
+
+            <rect class="box box-hot" x="40" y="344" width="270" height="30" />
+            <text class="t-small t-hot" x="175" y="363" text-anchor="middle">mC sends ok (held 1 s)</text>
+
+            <line class="line" x1="130" y1="414" x2="406" y2="414" marker-end="url(#ah-s)" />
+            <text x="270" y="406" text-anchor="middle">POST /api/commit · text after floor</text>
+
+            <rect class="box" x="290" y="440" width="240" height="46" />
+            <text class="t-small" x="410" y="459" text-anchor="middle">split the last turn</text>
+            <text class="t-small" x="410" y="477" text-anchor="middle">save manifesto.json</text>
+
+            <line class="line" x1="410" y1="530" x2="134" y2="530" marker-end="url(#ah-s)" />
+            <text x="270" y="522" text-anchor="middle">state · active D</text>
+            <line class="line" x1="410" y1="530" x2="876" y2="530" marker-end="url(#ah-s)" />
+            <text x="530" y="522" text-anchor="middle">state · active D</text>
+
+            <rect class="box" x="40" y="570" width="180" height="30" />
+            <text class="t-small" x="130" y="589" text-anchor="middle">pC → view.html</text>
+            <rect class="box" x="790" y="570" width="180" height="30" />
+            <text class="t-small" x="880" y="589" text-anchor="middle">pD → editor</text>
+          </svg>
+        </div>
+        <figcaption>
+          Only pC talks to Ollama during its turn, so the GPU serves one editor at a time. The orange row is the live mirror: pC posts the text after the floor
+          about five times a second and the server relays it unchanged.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="document" aria-labelledby="document-title">
+      <h2 id="document-title">The shared document</h2>
+      <p>
+        pC's view of the manifesto in round one. The opening is locked. pB's turn is the last one, so pC may cut into it. Everything past the knob is text the
+        model has written ahead, which becomes part of the turn only if the knob moves over it.
+      </p>
+      <figure>
+        <p class="manuscript">
+          <span class="seg floor" data-tag="opening · locked">Design education must</span>
+          <span class="seg" data-tag="pB · rewritable">teach doubt before style. Every brief should end</span>
+          <span class="seg cut" data-tag="cut by pC">on a portfolio piece.</span>
+          <span class="seg new" data-tag="pC · new">with a question the client did not ask.</span><span class="caret-knob" aria-label="main knob"></span
+          ><span class="seg buffer" data-tag="ahead of the knob">Grades should reward the courage to drop an idea…</span>
+        </p>
+        <ul class="legend" aria-label="Legend">
+          <li><span class="sw floor"></span>locked floor</li>
+          <li><span class="sw"></span>previous turn, rewritable</li>
+          <li><span class="sw cut"></span>cut this turn</li>
+          <li><span class="sw new"></span>this turn's new text</li>
+          <li><span class="sw buffer"></span>generated ahead, not committed</li>
+        </ul>
+        <figcaption>The editor's existing locked-opening count becomes the floor, and the knob stops at it.</figcaption>
+      </figure>
+      <div class="split">
+        <div style="display: grid; gap: 12px">
+          <h3>When pC presses OK</h3>
+          <ol>
+            <li>pC sends only the text after the floor. It never sends the floor, so a station bug cannot change locked turns.</li>
+            <li>The words at the start that match pB's turn stay credited to pB: "teach doubt before style. Every brief should end".</li>
+            <li>The rest becomes pC's turn: "with a question the client did not ask."</li>
+            <li>pD's floor is now the opening plus pB's kept words. pD may cut into pC's turn, nothing older.</li>
+          </ol>
+          <p>If only the opening exists, the opening is the whole floor, so it can never be rewritten.</p>
+        </div>
+        <pre aria-label="manifesto.json after pC's commit"><span class="c">// manifesto.json after pC presses OK</span>
+{
+  "active": "D",
+  "turns": [
+    { "station": "opening", "text": "Design education must" },
+    { "station": "B", "text": "teach doubt before style. Every brief should end" },
+    { "station": "C", "text": "with a question the client did not ask." }
+  ]
+}</pre>
+      </div>
+    </section>
+
+    <section id="steering" aria-labelledby="steering-title">
+      <h2 id="steering-title">Steering</h2>
+      <p>
+        The app already builds a menu of steering dimensions after every pause in scrubbing, from the text up to the knob and the phrases in the attention
+        boxes. The plan keeps that flow and changes what goes into it: a manifesto catalog, slots the model fills from the text, and one lens line per station.
+      </p>
+      <figure>
+        <div class="diagram">
+          <svg
+            viewBox="0 0 1000 262"
+            role="img"
+            aria-label="Five inputs feed the menu prompt: the text up to the knob, the attention box phrases, the station lens, the dimensions already on knobs, and the manifesto catalog. The model picks five axes and fills slots from the text. The result is preloaded as the fan menu of five dimensions."
+          >
+            <defs>
+              <marker id="ah-m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0L10 5L0 10z" class="fill-ink" />
+              </marker>
+              <marker id="ah-m-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0L10 5L0 10z" class="fill-hot" />
+              </marker>
+            </defs>
+            <rect class="box" x="20" y="20" width="300" height="38" />
+            <text x="36" y="44">text up to the knob</text>
+            <rect class="box-hot" x="20" y="66" width="300" height="38" />
+            <text class="t-hot" x="36" y="90">attention box phrases</text>
+            <rect class="box" x="20" y="112" width="300" height="38" />
+            <text x="36" y="136">station lens · who it serves</text>
+            <rect class="box" x="20" y="158" width="300" height="38" />
+            <text x="36" y="182">dimensions already on knobs</text>
+            <rect class="box" x="20" y="204" width="300" height="38" />
+            <text x="36" y="228">manifesto axis catalog</text>
+
+            <line class="line" x1="320" y1="39" x2="396" y2="96" marker-end="url(#ah-m)" />
+            <line class="line-hot" x1="320" y1="85" x2="396" y2="116" marker-end="url(#ah-m-hot)" />
+            <line class="line" x1="320" y1="131" x2="396" y2="135" marker-end="url(#ah-m)" />
+            <line class="line" x1="320" y1="177" x2="396" y2="154" marker-end="url(#ah-m)" />
+            <line class="line" x1="320" y1="223" x2="396" y2="174" marker-end="url(#ah-m)" />
+
+            <rect class="box box-strong" x="400" y="66" width="240" height="138" />
+            <text class="t-strong" x="520" y="96" text-anchor="middle">menu prompt</text>
+            <text x="520" y="122" text-anchor="middle">gpt-oss:20b</text>
+            <text x="520" y="146" text-anchor="middle">picks 5 axes</text>
+            <text x="520" y="170" text-anchor="middle">fills ‹slots› from text</text>
+
+            <line class="line" x1="640" y1="135" x2="716" y2="135" marker-end="url(#ah-m)" />
+            <text class="t-small" x="680" y="127" text-anchor="middle">preloaded</text>
+
+            <rect class="box" x="720" y="80" width="260" height="110" />
+            <text class="t-strong" x="736" y="108">fan menu</text>
+            <text x="736" y="132">5 dimensions, e.g.</text>
+            <text x="736" y="156">tension: craft | critique</text>
+            <text x="736" y="178">stakeholders: students | …</text>
+          </svg>
+        </div>
+        <figcaption>
+          The words a player boxes (orange) decide which axes the model offers and what the slots say. The menu loads while the text streams, so it is ready
+          when a channel opens.
+        </figcaption>
+      </figure>
+
+      <div class="split">
+        <div class="table-wrap">
+          <table>
+            <caption class="lbl" style="text-align: left; padding-bottom: 8px">
+              Draft manifesto catalog
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Dimension</th>
+                <th scope="col">Kind</th>
+                <th scope="col">Labels</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>stance</td>
+                <td>scale</td>
+                <td>pragmatic ↔ radical</td>
+              </tr>
+              <tr>
+                <td>method</td>
+                <td>scale</td>
+                <td>making ↔ theory</td>
+              </tr>
+              <tr>
+                <td>scope</td>
+                <td>scale</td>
+                <td>individual ↔ collective</td>
+              </tr>
+              <tr>
+                <td>horizon</td>
+                <td>scale</td>
+                <td>present ↔ distant future</td>
+              </tr>
+              <tr>
+                <td>tone</td>
+                <td>choice</td>
+                <td>urgent · hopeful · critical · playful</td>
+              </tr>
+              <tr>
+                <td>form</td>
+                <td>choice</td>
+                <td>principle · provocation · example</td>
+              </tr>
+              <tr>
+                <td>audience</td>
+                <td>choice</td>
+                <td>students · educators · institutions · industry</td>
+              </tr>
+              <tr>
+                <td class="hot">stakeholders</td>
+                <td>choice</td>
+                <td class="hot">‹who the text names›</td>
+              </tr>
+              <tr>
+                <td class="hot">tension</td>
+                <td>scale</td>
+                <td class="hot">‹two ideas the text sets against each other›</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <caption class="lbl" style="text-align: left; padding-bottom: 8px">
+              Station lenses
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Station</th>
+                <th scope="col">Lens line in the menu prompt</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>pB</td>
+                <td>how design is taught</td>
+              </tr>
+              <tr>
+                <td>pC</td>
+                <td>who design education serves</td>
+              </tr>
+              <tr>
+                <td>pD</td>
+                <td>what design education is for</td>
+              </tr>
+            </tbody>
+          </table>
+          <p style="font-size: var(--small); color: var(--ink-3); padding-top: 10px">
+            Orange rows are slots the model fills from the manifesto, like today's character slot. Leave a lens empty to drop that station's identity. All of
+            this lives in
+            <code>src/stations.ts</code> and <code>live-dimension.ts</code>.
+          </p>
+        </div>
+      </div>
+
+      <figure>
+        <div class="diagram narrow">
+          <svg
+            viewBox="0 0 720 440"
+            role="img"
+            aria-label="A steering channel on the existing fan, made of two capped controls. The direction control sets the knob's angle around the main knob: while choosing it points at a menu item, after choosing it sets the value. The strength control sets the distance: past the gate it chooses, further out is stronger, and back to zero releases."
+          >
+            <path class="wash" d="M181.7 241.6 L275.6 261.6 A200 200 0 0 1 241.8 337.6 L164.1 281.1 A104 104 0 0 0 181.7 241.6 Z" />
+            <line class="faint" x1="98" y1="188.8" x2="180" y2="46.8" />
+            <line class="faint" x1="109.1" y1="198.8" x2="241.8" y2="102.4" />
+            <line class="faint" x1="115.2" y1="212.5" x2="275.6" y2="178.4" />
+            <line class="faint" x1="115.2" y1="227.5" x2="275.6" y2="261.6" />
+            <line class="faint" x1="109.1" y1="241.2" x2="241.8" y2="337.6" />
+            <line class="faint" x1="98" y1="251.2" x2="180" y2="393.2" />
+            <path class="faint dashed" d="M98 188.8 A36 36 0 0 1 98 251.2" />
+            <path class="line" d="M132 129.9 A104 104 0 0 1 132 310.1" />
+            <path class="line" style="stroke: var(--ink)" d="M180 46.8 A200 200 0 0 1 180 393.2" />
+
+            <text x="223.2" y="61" dominant-baseline="middle">stance</text>
+            <text x="275.6" y="132.9" dominant-baseline="middle">stakeholders</text>
+            <text x="294" y="220" dominant-baseline="middle">tension</text>
+            <text class="t-strong t-hot" x="275.6" y="307.1" dominant-baseline="middle">horizon</text>
+            <text x="223.2" y="379" dominant-baseline="middle">tone</text>
+
+            <text class="t-small" x="132" y="328" text-anchor="middle">gate</text>
+            <text class="t-small" x="180" y="414" text-anchor="middle">full strength</text>
+
+            <line class="line-hot" x1="89.1" y1="224.1" x2="219.8" y2="282.2" />
+            <circle class="knob-hot" cx="226.2" cy="285.1" r="7" />
+            <circle class="knob" cx="80" cy="220" r="9" />
+            <circle class="pip" cx="80" cy="220" r="1.5" />
+            <text class="t-small" x="64" y="224" text-anchor="end">main knob</text>
+
+            <text class="t-lbl" x="444" y="112">capped · stays where left</text>
+            <line x1="446" y1="150" x2="514" y2="150" style="stroke: var(--ink-3); stroke-width: 3" />
+            <line x1="444" y1="141" x2="444" y2="159" style="stroke: var(--ink); stroke-width: 1.5" />
+            <line x1="516" y1="141" x2="516" y2="159" style="stroke: var(--ink); stroke-width: 1.5" />
+            <rect x="484" y="141" width="8" height="18" style="fill: var(--ink)" />
+            <text class="t-strong" x="536" y="154">direction → angle</text>
+            <text x="444" y="184">choosing: points at a menu item</text>
+            <text x="444" y="206">chosen: sets the value</text>
+
+            <line x1="446" y1="270" x2="514" y2="270" style="stroke: var(--ink-3); stroke-width: 3" />
+            <line x1="444" y1="261" x2="444" y2="279" style="stroke: var(--ink); stroke-width: 1.5" />
+            <line x1="516" y1="261" x2="516" y2="279" style="stroke: var(--ink); stroke-width: 1.5" />
+            <rect x="452" y="261" width="8" height="18" style="fill: var(--ink)" />
+            <text class="t-strong" x="536" y="274">strength → distance</text>
+            <text x="444" y="306">past the gate: chooses</text>
+            <text x="444" y="328">further out: stronger</text>
+            <text x="444" y="350">back to 0: releases</text>
+          </svg>
+        </div>
+        <figcaption>
+          A steering channel is two capped controls driving the existing fan, so the menu, the choosing and the knob visuals stay as they are. The panel needs
+          no printed labels: the screen names the dimension each channel is steering. Once a knob pins beside the sentence that delivered it, moving that
+          channel opens a fresh knob.
+        </figcaption>
+      </figure>
+    </section>
+
+    <section id="hardware" aria-labelledby="hardware-title">
+      <h2 id="hardware-title">Station hardware</h2>
+      <p>
+        Each function names the action it needs instead of a part. Any part that behaves like its action type works, so the panel can be built from whatever
+        fits. One part can carry two types: an endless dial that also presses gives one endless and one trigger.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <caption class="lbl" style="text-align: left; padding-bottom: 8px">
+            Action types
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Type</th>
+              <th scope="col">What the hand does</th>
+              <th scope="col">Sends</th>
+              <th scope="col">Rules</th>
+              <th scope="col">Parts that fit</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="type">Endless</span></td>
+              <td>Turns or scrolls with no end stops. Only the movement counts.</td>
+              <td>signed steps since the last line</td>
+              <td>Report relative steps at any speed, never a position.</td>
+              <td>rotary encoder, jog wheel, scroll wheel, trackball axis</td>
+            </tr>
+            <tr>
+              <td><span class="type">Trigger</span></td>
+              <td>Presses and lets go. Nothing stays pressed.</td>
+              <td>one word per press</td>
+              <td>Debounce, and fire once on press.</td>
+              <td>push button, arcade button, an encoder's press, capacitive pad, foot switch</td>
+            </tr>
+            <tr>
+              <td><span class="type">Capped</span></td>
+              <td>Moves between two hard ends and stays where it is left.</td>
+              <td>position 0–1000</td>
+              <td>
+                Calibrate both ends and smooth the reading. Send only after a move of 20 or more, or noise will restart generation over and over. Exactly 0 and
+                1000 are always sent, so both ends are reachable. No spring return, and the 0 end must be easy to find.
+              </td>
+              <td>slide potentiometer, end-stopped rotary potentiometer, fader</td>
+            </tr>
+            <tr>
+              <td><span class="type">Hold</span></td>
+              <td>Presses and keeps holding. Letting go early cancels.</td>
+              <td>one word when the hold completes</td>
+              <td>Fire only after 1 s of continuous hold, so nobody passes the turn by accident. Show progress if you can, e.g. with an LED.</td>
+              <td>large push button, key switch, any trigger part</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        No function needs a switch that stays flipped. Every on/off state lives on screen and resets when the editor loads each turn, so a latching switch would
+        drift out of step with it. Use a trigger instead.
+      </p>
+      <p>
+        Per station that makes 3 endless, 3 triggers, 1 hold, and 2 capped controls per steering channel. The select trigger can be the press of the
+        along-the-line dial.
+      </p>
+      <p>Every function the editor has, its action type, and the line the ESP32 sends:</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Function</th>
+              <th scope="col">Action type</th>
+              <th scope="col">Line</th>
+              <th scope="col">Drives</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Scrub the text forward or back</td>
+              <td><span class="type">Endless</span></td>
+              <td><code>scrub -3</code></td>
+              <td>moves the main knob by words, down to the floor</td>
+            </tr>
+            <tr>
+              <td>Reroll the text past the knob</td>
+              <td><span class="type">Trigger</span></td>
+              <td><code>reroll</code></td>
+              <td>cuts at the knob and generates again</td>
+            </tr>
+            <tr>
+              <td>Model's attention boxes on or off</td>
+              <td><span class="type">Trigger</span></td>
+              <td><code>box</code></td>
+              <td>expand or collapse the model's boxes; the on/off state lives on screen</td>
+            </tr>
+            <tr>
+              <td>Move the word cursor along the line</td>
+              <td><span class="type">Endless</span></td>
+              <td><code>across 1</code></td>
+              <td>one word per step; past a line's end it continues on the next line</td>
+            </tr>
+            <tr>
+              <td>Move the word cursor between lines</td>
+              <td><span class="type">Endless</span></td>
+              <td><code>down -1</code></td>
+              <td>one line per step, keeping its column</td>
+            </tr>
+            <tr>
+              <td>Select the word under the cursor</td>
+              <td><span class="type">Trigger</span></td>
+              <td><code>select</code></td>
+              <td>boxes the phrase around that word, or removes the box the cursor is in</td>
+            </tr>
+            <tr>
+              <td>Steering channel: direction and value</td>
+              <td><span class="type">Capped</span></td>
+              <td><code>value 1 734</code></td>
+              <td>knob angle on the fan</td>
+            </tr>
+            <tr>
+              <td>Steering channel: strength</td>
+              <td><span class="type">Capped</span></td>
+              <td><code>strength 1 400</code></td>
+              <td>knob distance; past the gate chooses, 0 releases</td>
+            </tr>
+            <tr>
+              <td>End the turn</td>
+              <td><span class="type">Hold</span></td>
+              <td><code>ok</code></td>
+              <td>commit, then hand over to the next station</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <h3>Word cursor</h3>
+      <p>Choosing important words works like moving through a text grid. Two endless controls move a highlighted word, and the select trigger boxes it.</p>
+      <figure>
+        <div class="diagram compact">
+          <svg
+            viewBox="0 0 520 215"
+            role="img"
+            aria-label="Three lines of manifesto text. The cursor is on the word question. Across plus one moves it to the next word, the. Down plus one moves it to the next line in the same column, landing on reward. Select on doubt boxed the phrase education must teach doubt before style, stopping at the full stop. The cursor cannot pass the main knob at the end of the shown text."
+          >
+            <defs>
+              <marker id="ah-c-hot" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0L10 5L0 10z" class="fill-hot" />
+              </marker>
+            </defs>
+
+            <rect class="shade" x="88.4" y="56" width="284.8" height="19" />
+            <line x1="241.6" y1="74" x2="277.6" y2="74" style="stroke: var(--ink); stroke-width: 1.5" />
+            <text class="t-small" x="259.6" y="44" text-anchor="middle">select boxes the phrase</text>
+
+            <text class="t-doc" x="40" y="70">Design</text>
+            <text class="t-doc" x="90.4" y="70">education</text>
+            <text class="t-doc" x="162.4" y="70">must</text>
+            <text class="t-doc" x="198.4" y="70">teach</text>
+            <text class="t-doc" x="241.6" y="70">doubt</text>
+            <text class="t-doc" x="284.8" y="70">before</text>
+            <text class="t-doc" x="335.2" y="70">style.</text>
+
+            <rect class="cursor-box" x="253.5" y="103" width="62.5" height="21" />
+            <line class="line-hot" x1="296" y1="95" x2="328" y2="95" marker-end="url(#ah-c-hot)" />
+            <text class="t-small t-hot" x="312" y="88" text-anchor="middle">across +1</text>
+
+            <text class="t-doc" x="40" y="118">Every</text>
+            <text class="t-doc" x="83.2" y="118">brief</text>
+            <text class="t-doc" x="126.4" y="118">should</text>
+            <text class="t-doc" x="176.8" y="118">end</text>
+            <text class="t-doc" x="205.6" y="118">with</text>
+            <text class="t-doc" x="241.6" y="118">a</text>
+            <text class="t-doc" x="256" y="118">question</text>
+            <text class="t-doc" x="320.8" y="118">the</text>
+            <text class="t-doc" x="349.6" y="118">client</text>
+
+            <line class="line-hot dashed" x1="259.6" y1="126" x2="259.6" y2="148" marker-end="url(#ah-c-hot)" />
+            <text class="t-small t-hot" x="270" y="141">down +1 · keeps the column</text>
+            <rect x="231.4" y="151" width="49.2" height="21" style="fill: none; stroke: var(--hot); stroke-width: 1; stroke-dasharray: 3 3" />
+
+            <text class="t-doc" x="40" y="166">did</text>
+            <text class="t-doc" x="68.8" y="166">not</text>
+            <text class="t-doc" x="97.6" y="166">ask.</text>
+            <text class="t-doc" x="133.6" y="166">Grades</text>
+            <text class="t-doc" x="184" y="166">should</text>
+            <text class="t-doc" x="234.4" y="166">reward</text>
+            <text class="t-doc" x="284.8" y="166">the</text>
+            <text class="t-doc" x="313.6" y="166">courage</text>
+            <text class="t-doc" x="371.2" y="166">to</text>
+
+            <circle class="knob" cx="396" cy="162" r="6" />
+            <circle class="pip" cx="396" cy="162" r="1.2" />
+            <text class="t-small" x="402" y="196" text-anchor="end">knob · cursor stops here</text>
+          </svg>
+        </div>
+        <figcaption>
+          Across steps one word at a time, and continues on the next line at a line's end. Down steps one line and keeps the column, landing on the word that
+          covers it. Select boxes the phrase around the cursor's word, or removes the box the cursor is in.
+        </figcaption>
+      </figure>
+      <ul>
+        <li>The cursor starts on the last shown word at the start of each turn.</li>
+        <li>It moves over all shown text, locked turns included, because boxing a word only steers and never edits.</li>
+        <li>It stops at the main knob, and moves back with the knob when scrubbing cuts past it.</li>
+        <li>On a word inside a box, that box highlights, the model's boxes included.</li>
+        <li>
+          Select makes the cursor's word the keyword and stretches the box up to 3 words each side, stopping at punctuation (<code>. , ; : ! ?</code>). The box
+          has the same shape as the model's boxes, so the prompt gets the keyword in context. Pressing select anywhere inside a box removes it.
+        </li>
+      </ul>
+      <div class="split">
+        <pre aria-label="Serial protocol"><span class="c"># ESP32 → browser · 115200 baud · one line per event</span>
+scrub -3          <span class="c"># endless · main knob, signed steps</span>
+across 1          <span class="c"># endless · word cursor along the line</span>
+down -1           <span class="c"># endless · word cursor between lines</span>
+select            <span class="c"># trigger · box the phrase at the cursor, or unbox it</span>
+box               <span class="c"># trigger · model's boxes on/off</span>
+reroll            <span class="c"># trigger</span>
+value 1 734       <span class="c"># capped · channel 1 direction, 0–1000</span>
+strength 1 400    <span class="c"># capped · channel 1 strength, 0–1000</span>
+ok                <span class="c"># hold · once the 1 s hold completes</span></pre>
+        <div style="display: grid; gap: 12px">
+          <h3>Firmware rules</h3>
+          <ul>
+            <li>The browser only sees the lines, so any part works as long as its firmware follows the rules of its action type.</li>
+            <li>
+              In <code>setup()</code>, print an empty line, the marker <code># spaceship-panel 1</code>, then every capped position. The browser resets the
+              board right after opening the port and ignores lines until the marker, so this syncs the panel on every page load. Lines starting with
+              <code>#</code> are comments.
+            </li>
+            <li>Steering channels are numbered from 1. Add a channel by adding a pair of capped controls; the browser opens it when it first hears from it.</li>
+            <li>WROOM-32 boards wire out 6 ADC1 pins: room for 3 steering channels. A 4th fits on ADC2 pins 25 and 26, which work because Wi-Fi is off.</li>
+          </ul>
+          <p>
+            The browser reads the port as a cancellable stream of lines in <code>src/input/serial.ts</code>. A keyboard version of the same events stands in
+            during development.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="server" aria-labelledby="server-title">
+      <h2 id="server-title">Server API</h2>
+      <p>
+        A Vite plugin adds these routes to both the dev server and <code>vite preview</code>. "Tail" means the text after the floor. The server keeps the turns
+        in memory and writes them to <code>manifesto.json</code> on every commit, through a temporary file and a rename.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Route</th>
+              <th scope="col">Who</th>
+              <th scope="col">Body</th>
+              <th scope="col">Effect</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>GET /api/events</code></td>
+              <td>every station</td>
+              <td>none</td>
+              <td>SSE stream. <code>state</code> on connect and after each commit; <code>live</code> while the active station edits.</td>
+            </tr>
+            <tr>
+              <td><code>POST /api/live</code></td>
+              <td>active station</td>
+              <td>station, tail, steering</td>
+              <td>Relayed to the views as <code>live</code>. Not saved.</td>
+            </tr>
+            <tr>
+              <td><code>POST /api/commit</code></td>
+              <td>active station</td>
+              <td>station, tail</td>
+              <td>Splits the last turn, appends the new one, moves to the next station, saves, sends <code>state</code>.</td>
+            </tr>
+            <tr>
+              <td><code>POST /api/skip</code></td>
+              <td>pA only</td>
+              <td>none</td>
+              <td>Passes the turn if a station is stuck.</td>
+            </tr>
+            <tr>
+              <td><code>POST /api/reset</code></td>
+              <td>pA only</td>
+              <td>none</td>
+              <td>Renames the file with a date and starts again from the opening.</td>
+            </tr>
+            <tr>
+              <td><code>/ollama/v1/chat/completions</code></td>
+              <td>active station</td>
+              <td>chat completion</td>
+              <td>Proxied to <code>127.0.0.1:11434</code>. Nothing else on Ollama is reachable.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Posts from a station whose turn it isn't are refused. Skip and reset accept requests from localhost only, so the facilitator runs them with
+        <code>curl</code> on pA.
+      </p>
+      <p>
+        Two settings the server can't work without: <code>allowedHosts: ["pa.local"]</code>, because Vite refuses any other host name, and an Origin header set
+        on the proxy, because Ollama refuses origins it doesn't know.
+      </p>
+    </section>
+
+    <section id="model" aria-labelledby="model-title">
+      <h2 id="model-title">Model on pA</h2>
+      <div class="split">
+        <ul>
+          <li>
+            <code>src/llm/cerebras.ts</code> becomes <code>src/llm/ollama.ts</code>. The URL becomes <code>/ollama/v1/chat/completions</code>, the API key goes,
+            and <code>max_completion_tokens</code> becomes <code>max_tokens</code>. The streaming parser stays.
+          </li>
+          <li>
+            The model name is one constant in <code>src/stations.ts</code>. If you switch to a model without reasoning, drop <code>reasoning_effort</code>,
+            which Ollama may reject.
+          </li>
+          <li>
+            <code>live-realization.ts</code> asks for <code>n: score</code> from 0 to 10 per sentence. Confidence is score / 10, and a knob pins at 0.8 as
+            before.
+          </li>
+          <li>Lower <code>BUFFER_WORDS</code> from 300 to about 150, since every steering change throws the buffer away.</li>
+        </ul>
+        <pre aria-label="Ollama settings and server command"><span class="c"># Ollama environment on pA</span>
+OLLAMA_NUM_PARALLEL=4      <span class="c"># boxes and pinning don't queue behind the text</span>
+OLLAMA_KEEP_ALIVE=-1       <span class="c"># keep the model loaded between turns</span>
+OLLAMA_CONTEXT_LENGTH=16384
+
+<span class="c"># the app, turns and proxy</span>
+npm run build
+npx vite preview --host --port 4173</pre>
+      </div>
+    </section>
+
+    <section id="pi-setup" aria-labelledby="pi-title">
+      <h2 id="pi-title">Pi setup</h2>
+      <div class="split">
+        <pre aria-label="Chromium policy file"><span class="c">// /etc/chromium/policies/managed/spaceship.json</span>
+{
+  "OverrideSecurityRestrictionsOnInsecureOrigin": [
+    "http://pa.local:4173"
+  ],
+  "SerialAllowUsbDevicesForUrls": [{
+    "devices": [{ "vendor_id": 4292 }, { "vendor_id": 6790 }],
+    "urls": ["http://pa.local:4173"]
+  }]
+}</pre>
+        <ul>
+          <li>Web Serial only works on secure pages, and plain http from pA isn't one. The first entry tells Chromium to treat pA as secure.</li>
+          <li>
+            The second grants the serial port without a prompt, which matters with no mouse. 4292 is the CP2102 USB chip's vendor and 6790 the CH340's; check
+            yours with <code>lsusb</code>.
+          </li>
+          <li>Give pA a fixed IP or the <code>pa.local</code> name.</li>
+          <li>No mouse or keyboard is attached. The page hides the pointer and ignores clicks, so a stray mouse does nothing.</li>
+        </ul>
+      </div>
+      <pre aria-label="Kiosk launch command"><span class="c"># one per Pi; station=C and station=D on the others</span>
+chromium --kiosk --noerrdialogs --autoplay-policy=no-user-gesture-required \
+  "http://pa.local:4173/spaceship/?station=B&amp;live=true"</pre>
+      <p>The autoplay flag lets the sound engine start. Today it only unlocks on a pointer or key press, and serial input never sends one.</p>
+    </section>
+
+    <section id="code" aria-labelledby="code-title">
+      <h2 id="code-title">Code changes</h2>
+      <p>Roughly 600 lines added and 1,600 deleted, with no new dependencies. Most of the deletion is the mouse handling.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">File</th>
+              <th scope="col">What changes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="group">
+              <td colspan="2">Change</td>
+            </tr>
+            <tr>
+              <td><code>text/text-stream.ts</code></td>
+              <td>Drop <code>expand</code>, add <code>seed(text, floorWords)</code>, and never cut below the floor.</td>
+            </tr>
+            <tr>
+              <td><code>text/main.ts</code></td>
+              <td>
+                Station startup, knob stops at the floor, live and commit, panel events and the word cursor. Shows about 200 locked words and sends the whole
+                manifesto to the model. The pointer wiring goes.
+              </td>
+            </tr>
+            <tr>
+              <td><code>text/future-knobs.ts</code></td>
+              <td>
+                Knobs are made only by <code>steer(channel, position, strength)</code>, which drives the existing menu, choose and drag logic and drops the knob
+                after 300 ms without input. Dragging, double-click delete and hover go.
+              </td>
+            </tr>
+            <tr>
+              <td><code>text/attention-knobs.ts</code></td>
+              <td>
+                <code>toggleAt(word)</code> boxes the phrase around a word (<code>phraseAround</code>: up to 3 words each side, stopping at punctuation) or
+                removes the box it is in, and <code>focus(word)</code> highlights the box under the cursor. Text selection, dragging and double-click delete go.
+              </td>
+            </tr>
+            <tr>
+              <td><code>text/live-dimension.ts</code></td>
+              <td>Manifesto catalog, slots filled from the text, station lens line.</td>
+            </tr>
+            <tr>
+              <td><code>live-completion.ts</code>, <code>live-attention.ts</code>, <code>story/prompt.ts</code></td>
+              <td>Manifesto prompts and examples.</td>
+            </tr>
+            <tr>
+              <td><code>text/live-realization.ts</code></td>
+              <td>Plain prompt scoring 0–10.</td>
+            </tr>
+            <tr>
+              <td><code>llm/cerebras.ts</code> → <code>llm/ollama.ts</code></td>
+              <td>Same-origin URL, <code>max_tokens</code>, no key.</td>
+            </tr>
+            <tr>
+              <td><code>vite.config.ts</code></td>
+              <td><code>/ollama</code> proxy and the turns plugin.</td>
+            </tr>
+            <tr class="group">
+              <td colspan="2">New</td>
+            </tr>
+            <tr>
+              <td><code>server/turns.mjs</code></td>
+              <td>Turn state, SSE, routes, saving. <code>turns.test.mjs</code> tests the commit split.</td>
+            </tr>
+            <tr>
+              <td><code>view.html</code>, <code>view/main.ts</code></td>
+              <td>The read-only page for waiting stations.</td>
+            </tr>
+            <tr>
+              <td><code>net/turns.ts</code></td>
+              <td>Events, live and commit for the editor.</td>
+            </tr>
+            <tr>
+              <td><code>input/serial.ts</code></td>
+              <td>Web Serial lines, plus the keyboard stand-in.</td>
+            </tr>
+            <tr>
+              <td><code>stations.ts</code></td>
+              <td>Turn order, opening, lenses, model name.</td>
+            </tr>
+            <tr>
+              <td><code>text/word-cursor.ts</code></td>
+              <td>The word cursor: steps along and between lines, keeps its column, stops at the knob. A small test covers the wrapping and column rules.</td>
+            </tr>
+            <tr class="group">
+              <td colspan="2">Delete</td>
+            </tr>
+            <tr>
+              <td>Scoring</td>
+              <td>
+                <code>left-rail</code>, <code>connections</code>, <code>keyword-relevance</code>, <code>influence</code>, <code>live-influence</code>,
+                <code>live-relevance</code>, <code>simulated-influence</code>, <code>simulated-relevance</code>, <code>llm/decisions</code>, and the rail CSS.
+              </td>
+            </tr>
+            <tr>
+              <td>Keys and stories</td>
+              <td><code>live-mode</code>, the keys dialog and mode toggle, <code>story/openings</code>.</td>
+            </tr>
+            <tr>
+              <td>Mouse</td>
+              <td>
+                <code>pointer</code>, <code>drag</code>, <code>hold</code>, the custom pointer CSS and hover styles, and the tray's sound toggle and extra link,
+                which nothing can press. The page sets <code>cursor: none</code> and turns off text selection, so a stray mouse does nothing.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="build" aria-labelledby="build-title">
+      <h2 id="build-title">Build order</h2>
+      <ol class="steps">
+        <li>
+          <span
+            >Spike, half a day: one Pi 4, one ESP32, the policy file, and a 15-line page on pA that prints serial lines. Also <code>curl</code> Ollama's
+            endpoint.</span
+          >
+          <span class="done">Done when lines appear on the Pi with no prompt and <code>isSecureContext</code> is true.</span>
+        </li>
+        <li>
+          <span>Ollama, manifesto content and the panel actions on one machine, driven by the keyboard stand-in. The mouse code goes in this step.</span>
+          <span class="done"
+            >Done when text streams, the word cursor boxes words, the fan offers manifesto dimensions with filled slots, knobs pin, and
+            <code>npm run build</code> passes.</span
+          >
+        </li>
+        <li>
+          <span>Turns: the plugin, the view page, and seed, floor and commit in the editor.</span>
+          <span class="done"
+            >Done when three tabs pass turns with the keyboard OK, the commit-split test passes, and a server restart keeps the manifesto.</span
+          >
+        </li>
+        <li>
+          <span>One real panel: swap the keyboard stand-in for Web Serial on the laptop.</span>
+          <span class="done">Done when one ESP32 runs a full turn with no keyboard. Localhost counts as secure, so no flags are needed there.</span>
+        </li>
+        <li>
+          <span>Pis: kiosk, policies, and a speed check.</span>
+          <span class="done">Done when a fake 5,000-word manifesto scrubs smoothly on a Pi 4. If it doesn't, redraw at most once per frame.</span>
+        </li>
+      </ol>
+    </section>
+
+    <section id="risks" aria-labelledby="risks-title">
+      <h2 id="risks-title">Risks</h2>
+      <ol>
+        <li>Pi 4 drawing speed as the manifesto grows. The editor shows only recent text; step 5 measures it.</li>
+        <li>Local generation is slower than Cerebras, by roughly 10× on a rough estimate, so the realtime feel weakens. A smaller buffer helps.</li>
+        <li>
+          gpt-oss:20b running prompts tuned for a 120b model writing stories, slot filling most of all. Test with the dev script before settling the panel.
+        </li>
+        <li>The Chromium policies are unverified on Raspberry Pi OS. Step 1 settles that.</li>
+        <li>Noise on capped controls can restart generation over and over. The move-of-20 rule is required.</li>
+        <li>Uncommitted work is lost if a Pi reloads mid-turn. Committed turns are safe on pA.</li>
+        <li>The repo's origin is the upstream project. Fork it before committing; it is MIT licensed, so keep the notice.</li>
+      </ol>
+    </section>
+  </main>
+
+  <footer>Spaceship Manifesto Network · plan for a fork of chuanqisun/spaceship · detailed plans in docs/network/</footer>
+
+  <template id="tpl-pa" data-kicker="Machine" data-title="pA · server">
+    <p>The one machine that holds the model and the document. Everything the stations need comes from here.</p>
+    <dl class="facts">
+      <dt>hardware</dt>
+      <dd>A6000 48 GB GPU · Linux with systemd · Node 26</dd>
+      <dt>services</dt>
+      <dd><code>ollama.service</code> runs the model; <code>spaceship.service</code> runs <code>npm run preview</code> and restarts 2 s after a failure</dd>
+      <dt>address</dt>
+      <dd><code>pa.local:4173</code> through avahi, with a DHCP reservation</dd>
+      <dt>firewall</dt>
+      <dd>allow 4173/tcp and 5353/udp from the LAN; never open 11434</dd>
+      <dt>deploy</dt>
+      <dd><code>git pull &amp;&amp; npm ci &amp;&amp; npm run build &amp;&amp; sudo systemctl restart spaceship</code></dd>
+      <dt>if it fails</dt>
+      <dd>stations show "reconnecting…" and retry every second; committed turns are safe on disk</dd>
+    </dl>
+    <p class="files">docs/network/server.md</p>
+  </template>
+
+  <template id="tpl-ollama" data-kicker="pA · model" data-title="Ollama">
+    <p>Writes every word, menu and score. Only the station whose turn it is talks to it, through the proxy.</p>
+    <dl class="facts">
+      <dt>listens</dt>
+      <dd><code>127.0.0.1:11434</code> only; <code>OLLAMA_HOST</code> stays unset</dd>
+      <dt>model</dt>
+      <dd><code>gpt-oss:20b</code>, set by <code>MODEL</code> in <code>src/stations.ts</code></dd>
+      <dt>settings</dt>
+      <dd><code>OLLAMA_NUM_PARALLEL=4</code> · <code>OLLAMA_KEEP_ALIVE=-1</code> · <code>OLLAMA_CONTEXT_LENGTH=16384</code></dd>
+      <dt>asked for</dt>
+      <dd>the continuation, attention boxes, the steering menu, the pinning check</dd>
+      <dt>load</dt>
+      <dd>one editor at a time, at most 4 requests at once</dd>
+      <dt>if it fails</dt>
+      <dd>the proxy returns 502 and the editor retries after 1 s, doubling up to 16 s</dd>
+      <dt>check</dt>
+      <dd><code>ollama ps</code> · <code>journalctl -u ollama</code> · <code>nvidia-smi</code></dd>
+    </dl>
+  </template>
+
+  <template id="tpl-server" data-kicker="pA · app server" data-title="Vite preview + turns plugin">
+    <p>One process serves both pages, keeps track of turns, relays the live text and proxies model calls.</p>
+    <dl class="facts">
+      <dt>run</dt>
+      <dd><code>npm run preview</code> on port 4173, or <code>npm run dev</code> while building</dd>
+      <dt>pages</dt>
+      <dd><code>/spaceship/</code> is the editor, <code>/spaceship/view.html</code> the view</dd>
+      <dt>api</dt>
+      <dd>
+        <code>/api/events</code> · <code>/api/live</code> · <code>/api/commit</code> · <code>/api/skip</code> · <code>/api/reset</code>, at the root, not under
+        <code>/spaceship/</code>
+      </dd>
+      <dt>owns</dt>
+      <dd>the state <code>{ active, turns }</code>; nothing else writes the document</dd>
+      <dt>order</dt>
+      <dd>save, then change memory, then broadcast, then respond, with no waiting in between</dd>
+      <dt>refuses</dt>
+      <dd>host names other than <code>pa.local</code> (403) · a station whose turn it isn't (409) · bodies over 256 K (413)</dd>
+      <dt>admin</dt>
+      <dd>from pA only: <code>curl -X POST localhost:4173/api/skip</code>, or <code>/api/reset</code></dd>
+    </dl>
+    <p class="files">server/turns.mjs · server/turns.test.mjs · vite.config.ts</p>
+  </template>
+
+  <template id="tpl-store" data-kicker="pA · data" data-title="manifesto.json">
+    <p>The saved manifesto. When the server starts, this file is the truth.</p>
+    <pre>
+{ "active": "D",
+  "turns": [
+    { "station": "opening", "text": "Design education must" },
+    { "station": "B", "text": "teach doubt before style. …" },
+    { "station": "C", "text": "with a question the client did not ask." }
+  ] }</pre>
+    <dl class="facts">
+      <dt>path</dt>
+      <dd><code>data/manifesto.json</code>, git-ignored</dd>
+      <dt>written</dt>
+      <dd>on every commit, skip and reset: temp file, flush, rename</dd>
+      <dt>never saved</dt>
+      <dd>the live text of the turn in progress</dd>
+      <dt>reset</dt>
+      <dd>renamed to <code>manifesto-&lt;time&gt;.json</code>, then a fresh start from the opening</dd>
+      <dt>damaged</dt>
+      <dd>moved aside as <code>manifesto-corrupt-&lt;time&gt;.json</code>, never overwritten</dd>
+    </dl>
+  </template>
+
+  <template id="tpl-proxy" data-kicker="Link · inside pA" data-title="Proxy to Ollama">
+    <p>Forwards one path from the stations to Ollama and streams the answer back token by token.</p>
+    <pre>
+POST /ollama/v1/chat/completions
+  → 127.0.0.1:11434/v1/chat/completions</pre>
+    <dl class="facts">
+      <dt>body</dt>
+      <dd>
+        <code>model</code>, <code>stream: true</code>, <code>reasoning_effort: "low"</code>, <code>temperature</code>, <code>max_tokens</code>,
+        <code>messages</code>
+      </dd>
+      <dt>origin</dt>
+      <dd>rewritten to <code>http://127.0.0.1:11434</code>, because Ollama refuses origins it doesn't know</dd>
+      <dt>streaming</dt>
+      <dd>unbuffered; when the browser aborts, the upstream request is cancelled and the GPU is freed</dd>
+      <dt>blocked</dt>
+      <dd>every other Ollama path returns 404, so nobody on the LAN can pull or delete models</dd>
+    </dl>
+  </template>
+
+  <template id="tpl-write" data-kicker="Link · inside pA" data-title="Save before anything else">
+    <p>Every change to the turns reaches the disk before memory changes or any station is told.</p>
+    <dl class="facts">
+      <dt>when</dt>
+      <dd>commit, skip, reset</dd>
+      <dt>how</dt>
+      <dd><code>writeFileSync(tmp, json, { flush: true })</code>, then <code>renameSync(tmp, file)</code></dd>
+      <dt>save fails</dt>
+      <dd>the station gets 500, memory is unchanged, and the turn doesn't move</dd>
+      <dt>crash</dt>
+      <dd>
+        before the rename, the old file survives and the station's retry works; after it, the retry gets 409 and the new state arrives when the events stream
+        reconnects
+      </dd>
+    </dl>
+  </template>
+
+  <template id="tpl-lan" data-kicker="Network" data-title="LAN · pa.local:4173">
+    <p>Plain HTTP on a local network. Every machine has to use the name <code>pa.local</code>.</p>
+    <dl class="facts">
+      <dt>why the name</dt>
+      <dd>the Chromium policy, the kiosk URL and Vite's <code>allowedHosts</code> all name it; opening the raw IP breaks Web Serial</dd>
+      <dt>resolving</dt>
+      <dd>avahi on pA; fallback <code>&lt;ip&gt; pa.local</code> in each Pi's <code>/etc/hosts</code></dd>
+      <dt>cabling</dt>
+      <dd>wired Ethernet for the Pis</dd>
+      <dt>connections</dt>
+      <dd>Chromium allows 6 per host: 1 events stream, up to 4 model streams, 1 post</dd>
+      <dt>security</dt>
+      <dd>no login: any device on the LAN could post as the active station</dd>
+    </dl>
+  </template>
+
+  <template id="tpl-events" data-kicker="Link · pA → {px}" data-title="Events stream to {px}">
+    <p>Every station keeps one Server-Sent Events connection open, whether it is editing or waiting.</p>
+    <pre>
+GET /api/events
+event: state  {"active":"C","turns":[…]}
+event: live   {"station":"C","tail":"…","steering":[…]}
+event: ping</pre>
+    <dl class="facts">
+      <dt>on connect</dt>
+      <dd><code>retry: 1000</code>, then <code>state</code>, then <code>live</code> if this turn has one</dd>
+      <dt>after that</dt>
+      <dd><code>state</code> after every commit, skip or reset · <code>live</code> up to 5 a second · <code>ping</code> every 15 s</dd>
+      <dt>page swap</dt>
+      <dd><span data-fill="px"></span> swaps page when <code>active</code> changes, and reloads if the turns changed under it, as after a reset</dd>
+      <dt>watchdog</dt>
+      <dd>no event for 45 s: reconnect</dd>
+      <dt>server side</dt>
+      <dd>a station more than 1 MB behind is dropped, and reconnects</dd>
+    </dl>
+    <p data-when="editor">Now: <span data-fill="px"></span> is editing, so it ignores <code>live</code> events, which are its own text coming back.</p>
+    <p data-when="view">Now: <span data-fill="px"></span> is waiting, so every <code>live</code> event redraws its view.</p>
+  </template>
+
+  <template id="tpl-hot" data-kicker="Link · {px} → pA" data-title="Edits and model calls from {px}">
+    <p>Only the station whose turn it is has this link. It carries three kinds of request.</p>
+    <pre>POST /api/live    → 204 · 409
+{"station":"<span data-fill="x"></span>","tail":"…","steering":["stance: very radical (strong)"]}
+
+POST /api/commit  → 200 + state · 409 · 500
+{"station":"<span data-fill="x"></span>","tail":"…"}
+
+POST /ollama/v1/chat/completions → token stream</pre>
+    <dl class="facts">
+      <dt>live</dt>
+      <dd>on every change, at most 5 a second, one in flight; failures are ignored</dd>
+      <dt>tail</dt>
+      <dd>the shown text after the floor, up to the knob, with single spaces; never the floor, never text past the knob</dd>
+      <dt>commit</dt>
+      <dd>sent on <code>ok</code> once model requests are aborted; a second <code>ok</code> is ignored; 409 means it already happened, so swap to the view</dd>
+      <dt>model</dt>
+      <dd>at most 4 requests at once</dd>
+      <dt>limits</dt>
+      <dd>tail up to 50,000 characters; steering up to 16 lines of 200</dd>
+    </dl>
+  </template>
+
+  <template id="tpl-pi" data-kicker="Station · {state}" data-title="{px} · Raspberry Pi 4">
+    <p data-when="editor">
+      <span data-fill="px"></span> has the turn. It runs the full editor (knob, attention boxes, steering fan and pinning), driven by
+      <span data-fill="mx"></span>.
+    </p>
+    <p data-when="view">
+      <span data-fill="px"></span> is waiting. It shows the manifesto with each station's text shaded, and the active station's live text in orange.
+    </p>
+    <dl class="facts">
+      <dt>page</dt>
+      <dd data-when="editor">
+        <code>/spaceship/?station=<span data-fill="x"></span>&amp;live=true</code>
+      </dd>
+      <dd data-when="view">
+        <code>/spaceship/view.html?station=<span data-fill="x"></span>&amp;live=true</code>
+      </dd>
+      <dt>browser</dt>
+      <dd>Chromium kiosk, started by <code>~/kiosk.sh</code> from the labwc autostart</dd>
+      <dt>policy</dt>
+      <dd><code>/etc/chromium/policies/managed/spaceship.json</code>: pa.local counts as secure, and the serial port opens without a prompt</dd>
+      <dt data-when="editor">document</dt>
+      <dd data-when="editor">
+        floor = every turn but the last; shows about 200 locked words plus the last turn; up to 6,000 earlier words go only to the model
+      </dd>
+      <dt data-when="editor">serial</dt>
+      <dd data-when="editor">opens <span data-fill="mx"></span>'s port, resets the board, waits for the marker</dd>
+      <dt data-when="editor">sends</dt>
+      <dd data-when="editor">live text, the commit, model calls</dd>
+      <dt data-when="editor">hands over</dt>
+      <dd data-when="editor"><code>ok</code> → commit → swaps to <code>view.html</code></dd>
+      <dt data-when="view">serial</dt>
+      <dd data-when="view">port closed: panel input is ignored while waiting</dd>
+      <dt data-when="view">draws</dt>
+      <dd data-when="view">the turns from <code>state</code> plus the latest <code>live</code>, scrolled to the end</dd>
+      <dt data-when="view">takes the turn</dt>
+      <dd data-when="view">when <code>state.active</code> becomes <span data-fill="x"></span>, swaps to the editor</dd>
+      <dt>if it fails</dt>
+      <dd>a reload mid-turn loses uncommitted text; committed turns are safe on pA</dd>
+    </dl>
+    <p class="files">docs/network/client.md</p>
+  </template>
+
+  <template id="tpl-serial" data-kicker="Link · {mx} → {px}" data-title="USB serial">
+    <p>One-way text lines from the panel to the browser, read with Web Serial.</p>
+    <pre>
+scrub -3      across 1      down -1
+select        box           reroll       ok
+value 1 734   strength 1 400
+# spaceship-panel 1</pre>
+    <dl class="facts">
+      <dt>settings</dt>
+      <dd>115200 baud, 8N1, lines end in <code>\r\n</code>, no flow control</dd>
+      <dt>opening</dt>
+      <dd><code>bufferSize: 4096</code>, then a reset: DTR off and RTS on, 100 ms, RTS off</dd>
+      <dt>gate</dt>
+      <dd>lines are dropped until <code># spaceship-panel 1</code> arrives, or for 2 s</dd>
+      <dt>rate</dt>
+      <dd>at most one line per 20 ms per control; scrub steps are summed per frame</dd>
+      <dt>permission</dt>
+      <dd>Chromium policy, USB vendor 4292 (CP2102) or 6790 (CH340)</dd>
+    </dl>
+    <p data-when="editor">Now: the port is open, and every line drives <span data-fill="px"></span>'s editor.</p>
+    <p data-when="view">Now: the port is closed while <span data-fill="px"></span> waits, so nothing on this link is read.</p>
+  </template>
+
+  <template id="tpl-esp" data-kicker="Panel" data-title="{mx} · ESP32">
+    <p>The station's only input. All three panels run the same firmware; only <code>config.h</code> changes.</p>
+    <dl class="facts">
+      <dt>board</dt>
+      <dd>ESP32-WROOM-32 DevKit with CP2102 or CH340, powered by the USB data cable</dd>
+      <dt>firmware</dt>
+      <dd><code>firmware/panel/</code>, arduino-cli 1.6.0, Arduino-ESP32 3.3.13, no libraries</dd>
+      <dt>endless ×3</dt>
+      <dd>scrub 16/17 · across 18/19 · down 21/22</dd>
+      <dt>trigger ×3</dt>
+      <dd>select 23 (the across press) · box 4 · reroll 13</dd>
+      <dt>hold ×1</dt>
+      <dd>ok 27, with an LED on 14 that fills over 1 s</dd>
+      <dt>capped ×4</dt>
+      <dd>channel 1 on 36/39 · channel 2 on 34/35 · spares 32/33 and 25/26</dd>
+      <dt>at boot</dt>
+      <dd>ROM noise, an empty line, the marker, then every capped position</dd>
+      <dt>rules</dt>
+      <dd>capped sends on a move of 20 or more, or at exactly 0 or 1000; hold fires once per hold</dd>
+    </dl>
+    <p class="files">docs/network/firmware.md</p>
+  </template>
+
+  <script>
+    const topology = document.getElementById("topology-svg")
+    const caption = document.getElementById("turn-caption")
+    const turnButtons = [...document.querySelectorAll("[data-turn]")]
+    const order = turnButtons.map((button) => button.dataset.turn)
+    const kicker = document.getElementById("info-kicker")
+    const title = document.getElementById("info-title")
+    const body = document.getElementById("info-body")
+    let selected
+
+    topology.querySelectorAll(".spot").forEach((spot) => spot.setAttribute("aria-pressed", "false"))
+    turnButtons.forEach((button) => button.addEventListener("click", () => showTurn(button.dataset.turn)))
+    document.getElementById("ok-button").addEventListener("click", () => {
+      const next = order[(order.indexOf(topology.dataset.active) + 1) % order.length]
+      showTurn(next)
+    })
+    topology.addEventListener("click", (event) => {
+      const spot = event.target.closest(".spot")
+      if (spot) showInfo(spot)
+    })
+    topology.addEventListener("keydown", (event) => {
+      const spot = event.target.closest(".spot")
+      if (!spot || (event.key !== "Enter" && event.key !== " ")) return
+      event.preventDefault()
+      showInfo(spot)
+    })
+    showInfo(topology.querySelector('[data-for="C"] [data-info="pi"]'))
+
+    /** The selected item keeps its details current: a station changes role, and the orange link moves to the new active station. */
+    function showTurn(station) {
+      topology.dataset.active = station
+      turnButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.turn === station)))
+      const waiting = order.filter((other) => other !== station).map((other) => `p${other}`)
+      caption.textContent = `p${station} is editing. ${waiting.join(" and ")} show the live mirror. Only p${station} sends edits and model calls.`
+      if (selected?.dataset.info === "hot") return showInfo(topology.querySelector(`[data-for="${station}"] [data-info="hot"]`))
+      if (selected) showInfo(selected)
+    }
+
+    /** Fills the panel from the item's template. Station parts read their letter and role from the turn shown in the diagram. */
+    function showInfo(spot) {
+      const station = spot.closest("[data-for]")?.dataset.for
+      const role = station === undefined ? "" : station === topology.dataset.active ? "editor" : "view"
+      const fills = { x: station, px: `p${station}`, mx: `m${station}`, state: role === "editor" ? "editing" : "waiting" }
+      const template = document.getElementById(`tpl-${spot.dataset.info}`)
+      const content = template.content.cloneNode(true)
+      content.querySelectorAll("[data-when]").forEach((node) => node.dataset.when === role || node.remove())
+      content.querySelectorAll("[data-fill]").forEach((node) => (node.textContent = fills[node.dataset.fill]))
+      kicker.textContent = filled(template.dataset.kicker, fills)
+      title.textContent = filled(template.dataset.title, fills)
+      body.replaceChildren(content)
+      select(spot)
+    }
+
+    function select(spot) {
+      selected?.classList.remove("is-selected")
+      selected?.setAttribute("aria-pressed", "false")
+      selected = spot
+      spot.classList.add("is-selected")
+      spot.setAttribute("aria-pressed", "true")
+    }
+
+    function filled(text, fills) {
+      return text.replace(/\{(\w+)\}/g, (_, key) => fills[key] ?? "")
+    }
+  </script>
+</html>
