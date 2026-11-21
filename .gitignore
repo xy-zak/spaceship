@@ -34,3 +34,6 @@ token-usage.log
 
 # the manifesto and its archives, written by server/turns.mjs
 data/
+
+# third-party texts used as prompt sources, kept for reference and not redistributed
+sources/

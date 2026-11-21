@@ -1,43 +1,63 @@
 import { streamCompletion } from "../llm/ollama.ts"
-import { STORY_REQUEST, storySystemPrompt } from "../story/prompt.ts"
+import { LENS_THEMES, LENSES, type Station } from "../stations.ts"
 import { strengthLevelOf, valueOf, type Control } from "./dimension.ts"
 import type { Steering, TextSource } from "./text-stream.ts"
 import { countWords } from "./words.ts"
 
-function steeredSystemPrompt(words: number) {
-  return `Continue the story. The user message may list KEY PHRASES and CONTROLS, then the story so far, which may stop mid-sentence.
+/** The part every station shares comes first, so Ollama can reuse its cached prefix. */
+const SYSTEM_PROMPT = `Continue the manifesto on design education. The user message may list KEY PHRASES and CONTROLS, then the MANIFESTO SO FAR, which may stop mid-sentence.
 
-- Output only the words that come next. Your first word directly follows the story's last word: if the story stops mid-sentence, finish that sentence first. Never repeat or restart any of the story so far, not even its last word: after "…the door was still" write "locked, and…", never "still locked" or "The door was still locked".
-- Key phrases lead what happens next: build the continuation on them, most of all on the [bracketed] words.
-- Controls set how the next passage reads. Each is a dimension given only by its name and its poles or options, so infer from the labels what to change in the events, focus or style. A scale gives a position between two poles: at an extreme, exaggerate that pole so a reader notices it within two sentences; midway, balance both. A choice names the option to follow. Each control ends with a strength in parentheses that sets how much it shapes the passage. Strong: it dominates every sentence. Moderate: a clear influence throughout. Slight: show it in one or two touches only, such as a single sentence or image, and otherwise write the passage as the story's own events, the key phrases and the stronger controls would have it; a slight control must never set the overall character of the passage. Strength is separate from the value and replaces the exaggeration rule: exaggerate a pole only at strong. Obey every control from the first sentence to the last, but never write a label itself as words of the story.
-- With both, key phrases are the content and controls are the manner: what happens next grows out of the key phrases, whose bracketed words appear in the first two sentences, written in the controlled manner.
+CONTEXT
+The manifesto's setting is Design Academy Eindhoven (DAE). Its Institutional Plan 2025-2028 is background, never to be quoted: the manifesto may take up, sharpen or reject its positions. Use the context sparingly: most passages need none of it, and the manifesto names a place at most once.
+- A small, independent, international academy, more than 75 years old. Bachelor students work in nine studios, each a different approach to research and making, beside the fundamentals. The master is becoming research labs; an associate degree in immersive design starts in 2027.
+- In 2028 it moves to a new campus in Eindhoven, with housing for first-years, in the Brainport region of technology, industry and government partners.
+- It faces the climate crisis, AI as a design tool, growing inequality, and politics that question international institutions and the funding of progressive ideas.
+- The plan holds that design is a social and cultural practice, not merely a tool for innovation; that thinking and making belong together; that many voices and ways of knowing beat a single canon; that design must look beyond the market; that the right questions come before solutions.
+
+VOICE
+- A manifesto: claims a reader could argue with, in the present tense, mostly short, with "must" and "we". Vary their shape: a demand, a definition, a question, a list, a scene from a studio. Use "not … but …" at most once per passage.
+- The language of design education, as the plan speaks it: studio, lab, brief, crit, material, praxis, discourse. Prefer a concrete studio, brief, material or person to an abstraction, and let no word or image become a refrain.
+- The plan's moves: pairs ("thinking and making"), spans ("from a single studio to the planet"), questions before answers. Use its moves, never its sentences.
+
+RULES
+- Output only the words that come next in the manifesto. Your first word directly follows the manifesto's last word: if it stops mid-sentence, finish that sentence first. Never repeat or restart any of the manifesto so far, not even its last word: after "…every brief should" write "end with a question, …", never "should end" or "Every brief should end".
+- Move the argument on: add a claim, example, objection or consequence the manifesto does not have yet. Never copy a sentence, or any run of four words, from the manifesto so far, and never return to a place, image or example it has already used.
+- Key phrases lead what comes next: build the continuation on them, most of all on the [bracketed] words.
+- Controls set how the next passage reads. Each is a dimension given only by its name and its poles or options, so infer from the labels what to change in the claims, focus or style. A scale gives a position between two poles: at an extreme, exaggerate that pole so a reader notices it within two sentences; midway, balance both. A choice names the option to follow. Each control ends with a strength in parentheses that sets how much it shapes the passage. Strong: it dominates every sentence. Moderate: a clear influence throughout. Slight: show it in one or two touches only, such as a single sentence or image, and otherwise write the passage as the manifesto's own argument, the key phrases and the stronger controls would have it; a slight control must never set the overall character of the passage. Strength is separate from the value and replaces the exaggeration rule: exaggerate a pole only at strong. Obey every control from the first sentence to the last, but never write a label itself as words of the manifesto.
+- With both, key phrases are the content and controls are the manner: what comes next grows out of the key phrases, whose bracketed words appear in the first two sentences, written in the controlled manner.
 - Plain text only. No title, markdown or commentary.
 - Break the text into paragraphs the way an essay does: a blank line wherever the thought turns, every three to six sentences.
-- Write about ${words} words. End on a complete sentence.
+- End on a complete sentence.
 
 EXAMPLE
 User:
 KEY PHRASES
-not the one on her [phone]
+the work's best [mistake]
 
 CONTROLS
-tension: very strained
+stance: very radical (strong)
 
-STORY SO FAR
-Mara had locked the kitchen an hour ago. Now the alarm went off, but it was not the one on her phone. She lay still and
+MANIFESTO SO FAR
+Every crit starts with the work's best mistake. A brief should
 Assistant:
-clawed for the phone anyway. Dark screen. The ringing did not stop.`
+end with a question the tutor cannot answer either. Abolish the final grade, mark the mistakes instead, and keep the argument going until the work changes.`
+
+/** Each station's editor gets the source for its own lens; without a station the prompt has none. */
+export function liveSourceFor(station?: Station): TextSource {
+  const lens = station && LENSES[station] ? `\n- Lens: ${LENSES[station]}. Draw on ${LENS_THEMES[station]}.` : ""
+  return {
+    complete: (prefix, steering, words, signal) =>
+      completeManifesto(`${SYSTEM_PROMPT}\n\nTHIS PASSAGE${lens}\n- Write about ${words} words.`, prefix, steering, signal),
+  }
 }
+
+/** Thinking models spend these tokens on reasoning too, so they stay generous; the editor stops the stream once it has the words it asked for. */
+const REQUEST = { temperature: 0.9, maxTokens: 2000 }
 
 const MAX_ECHO_WORDS = 6
 
-export const liveSource: TextSource = { complete: completeStory }
-
-async function* completeStory(prefix: string, steering: Steering, words: number, signal: AbortSignal) {
-  const isSteered = steering.leads.length > 0 || steering.controls.length > 0
-  const request = isSteered
-    ? { ...STORY_REQUEST, system: steeredSystemPrompt(words), user: steeredUserMessage(prefix, steering) }
-    : { ...STORY_REQUEST, system: storySystemPrompt(words), user: prefix }
+async function* completeManifesto(system: string, prefix: string, steering: Steering, signal: AbortSignal) {
+  const request = { ...REQUEST, system, user: userMessage(prefix, steering) }
   let head: string | undefined = ""
   for await (const delta of streamCompletion({ ...request, signal })) {
     if (head === undefined) {
@@ -74,12 +94,12 @@ function bareWord(word: string) {
   return word.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "")
 }
 
-/** Empty blocks are left out, header included. */
-function steeredUserMessage(prefix: string, { leads, controls }: Steering) {
+/** The manifesto comes last: put first, so a steering change would keep Ollama's cached prefix, qwen broke more sentences and ignored strong controls. Empty blocks are left out, header included. */
+function userMessage(prefix: string, { leads, controls }: Steering) {
   const blocks = [
     ["KEY PHRASES", leads.map(({ before, keyword, after }) => `${before}[${keyword}]${after}`)],
     ["CONTROLS", controls.map(controlLine)],
-    ["STORY SO FAR", [prefix]],
+    ["MANIFESTO SO FAR", [prefix]],
   ] as const
   return blocks
     .filter(([, lines]) => lines.length)

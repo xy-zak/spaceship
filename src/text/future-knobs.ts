@@ -47,6 +47,8 @@ type FutureKnobsOptions = {
   context: () => { text: string; leads: Lead[] }
   /** Called when what the knobs steer changes: a knob's setting (its value in words and strength level), or a knob pinning. */
   onChange: () => void
+  /** Called when a knob starts choosing its dimension while none was, and when the last one choosing has chosen or gone. */
+  onChoosing: (isChoosing: boolean) => void
 }
 
 /** Where a knob was last dragged to relative to the fan: `swing` is its angle from the axis and sets the value, `distance` from the main knob sets the strength. */
@@ -118,9 +120,11 @@ export function createFutureKnobs({
   textElement,
   context,
   onChange,
+  onChoosing,
 }: FutureKnobsOptions) {
   const tracker = createRealizationTracker(realization, () => follow(story))
   let knobs: FutureKnob[] = []
+  let wasChoosing = false
   let preloaded: Menu | undefined
   let axis = 0
   let story: StoryLayout = { content: "", text: "", combined: "", sentences: [] }
@@ -186,6 +190,7 @@ export function createFutureKnobs({
     }
     document.body.append(element)
     knobs.push(knob)
+    reportChoosing()
     makeDraggable(element, {
       onStart: () => {
         if (knob.pinned) return false
@@ -218,6 +223,7 @@ export function createFutureKnobs({
     const hadDimension = knobs.some(isSteering)
     knobs.forEach(dispose)
     knobs = []
+    reportChoosing()
     layout()
     if (hadDimension) onChange()
   }
@@ -316,6 +322,7 @@ export function createFutureKnobs({
     if (!silent) sounds.remove(knob.point.x)
     dispose(knob)
     knobs = knobs.filter((other) => other !== knob)
+    reportChoosing()
     layout()
     if (isSteering(knob)) onChange()
   }
@@ -495,11 +502,19 @@ export function createFutureKnobs({
   function choose(knob: FutureKnob, dimension: Dimension) {
     knob.dimension = dimension
     knob.candidate = undefined
+    reportChoosing()
     knob.sound.marks = undefined
     sounds.take(knob.point.x)
     if (knob.isDragging) startBed(knob)
     layout()
     settle(knob)
+  }
+
+  function reportChoosing() {
+    const isChoosing = knobs.some((knob) => !knob.dimension)
+    if (isChoosing === wasChoosing) return
+    wasChoosing = isChoosing
+    onChoosing(isChoosing)
   }
 
   /** Reports a change only when what the text generator would see differs from the last report. */

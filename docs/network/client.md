@@ -61,17 +61,20 @@
 
 - **`live-completion.ts`:**
   - Delete `expandToStoryStart` and the story openings, and rewrite the prompt and example for a manifesto.
+  - One system prompt for steered and unsteered calls: the DAE Institutional Plan 2025-2028 as background the manifesto may take up or reject, the voice, the rules, one example, then the station's lens and themes (`LENS_THEMES` in `src/stations.ts`) and the word count last.
+  - `liveSourceFor(station)` gives each editor the source for its lens.
   - Export `controlLine`.
-  - In `steeredUserMessage`, put the manifesto block **before** the key phrases and controls, so Ollama can reuse its cached prompt prefix when only the steering changes.
+  - The manifesto block stays **after** the key phrases and controls. Putting it first would let Ollama reuse its cached prefix when only the steering changes, but on qwen3-vl:8b it broke more sentences (1 of 3 joined) and ignored strong controls (1 of 3 followed).
 - **`live-attention.ts`, `live-dimension.ts`:** new prompts; use `streamCompletion` from `llm/ollama.ts`; remove the API-key checks.
 - **`live-dimension.ts` catalog:**
   - Slots are marked by empty labels (`options: []`, or `low: ""`).
   - `axisLine` writes `stakeholders: <who the text names>` and `tension: <an idea the text holds> | <the idea it sets against it>`.
-  - Adds `Lens: …` from `context.lens`; `dimension.ts` gives `DimensionContext` a `lens: string`.
+  - A filled slot must use the manifesto's words (every stakeholder, at least one pole of a tension), so a copy of the example is dropped; generic axes keep their catalog labels whatever the model writes.
+  - Adds `Lens: …` through `liveDimensionFor(station)`, so `DimensionContext` is unchanged.
 - **`live-realization.ts`:**
   - Plain prompt, parsed with `^\[?(\d+)\]?\s*[:=]\s*(\d+)`.
   - Yields `{ index: n - 1, confidence: min(score, 10) / 10 }` for asked indices only, at `temperature: 0`.
-- **Other:** `story/prompt.ts` gets the manifesto system prompt and example. In `sound/engine.ts`, delete `setSoundOn` and `isSoundOn`; with the autoplay flag the audio context starts already running. In `text-offsets.ts`, delete `textOffsetOf`.
+- **Other:** `story/prompt.ts` is deleted; its prompt moved into `live-completion.ts`. In `sound/engine.ts`, delete `setSoundOn` and `isSoundOn`; with the autoplay flag the audio context starts already running. In `text-offsets.ts`, delete `textOffsetOf`.
 
 **Unchanged:** `caret.ts`, `layout.ts`, `segments.ts`, `words.ts`, `story-layout.ts`, `realization-tracker.ts`, `status-line.ts`.
 

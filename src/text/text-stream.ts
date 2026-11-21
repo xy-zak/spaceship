@@ -48,6 +48,7 @@ export function createTextStream({ complete }: TextSource, onChange: () => void)
     seed,
     generate,
     truncate,
+    stop,
     activity,
     streaming,
   }
@@ -134,6 +135,13 @@ export function createTextStream({ complete }: TextSource, onChange: () => void)
   function truncate(count: number) {
     cancel()
     text = firstWords(text, Math.max(count, floorWords))
+  }
+
+  /** Stops the running generation, dropping its last word, which may have been cut off mid-word. */
+  function stop() {
+    if (!active) return
+    truncate(countWords(text) - 1)
+    onChange()
   }
 
   function cancel() {

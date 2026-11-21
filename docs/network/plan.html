@@ -1167,7 +1167,7 @@
         <div class="table-wrap">
           <table>
             <caption class="lbl" style="text-align: left; padding-bottom: 8px">
-              Draft manifesto catalog
+              Manifesto catalog
             </caption>
             <thead>
               <tr>
@@ -1183,9 +1183,19 @@
                 <td>pragmatic ↔ radical</td>
               </tr>
               <tr>
+                <td>purpose</td>
+                <td>scale</td>
+                <td>commercial ↔ social</td>
+              </tr>
+              <tr>
                 <td>method</td>
                 <td>scale</td>
-                <td>making ↔ theory</td>
+                <td>hands-on ↔ theoretical</td>
+              </tr>
+              <tr>
+                <td>perspective</td>
+                <td>scale</td>
+                <td>singular ↔ pluralistic</td>
               </tr>
               <tr>
                 <td>scope</td>
@@ -1198,6 +1208,16 @@
                 <td>present ↔ distant future</td>
               </tr>
               <tr>
+                <td>technology</td>
+                <td>scale</td>
+                <td>enthusiastic ↔ sceptical</td>
+              </tr>
+              <tr>
+                <td>register</td>
+                <td>scale</td>
+                <td>plain ↔ academic</td>
+              </tr>
+              <tr>
                 <td>tone</td>
                 <td>choice</td>
                 <td>urgent · hopeful · critical · playful</td>
@@ -1205,7 +1225,7 @@
               <tr>
                 <td>form</td>
                 <td>choice</td>
-                <td>principle · provocation · example</td>
+                <td>principle · provocation · question · example</td>
               </tr>
               <tr>
                 <td>audience</td>
@@ -1233,7 +1253,7 @@
             <thead>
               <tr>
                 <th scope="col">Station</th>
-                <th scope="col">Lens line in the menu prompt</th>
+                <th scope="col">Lens in the menu and continuation prompts</th>
               </tr>
             </thead>
             <tbody>
@@ -1252,9 +1272,9 @@
             </tbody>
           </table>
           <p style="font-size: var(--small); color: var(--ink-3); padding-top: 10px">
-            Orange rows are slots the model fills from the manifesto, like today's character slot. Leave a lens empty to drop that station's identity. All of
-            this lives in
-            <code>src/stations.ts</code> and <code>live-dimension.ts</code>.
+            Orange rows are slots the model fills with the manifesto's own words. Purpose, perspective, technology and register come from the debates in DAE's
+            Institutional Plan 2025-2028, which the continuation prompt gives as background. Leave a lens empty to drop that station's identity. The lenses and
+            their themes live in <code>src/stations.ts</code>, the catalog in <code>live-dimension.ts</code>.
           </p>
         </div>
       </div>
@@ -1729,8 +1749,8 @@ chromium --kiosk --noerrdialogs --autoplay-policy=no-user-gesture-required \
               <td>Manifesto catalog, slots filled from the text, station lens line.</td>
             </tr>
             <tr>
-              <td><code>live-completion.ts</code>, <code>live-attention.ts</code>, <code>story/prompt.ts</code></td>
-              <td>Manifesto prompts and examples.</td>
+              <td><code>live-completion.ts</code>, <code>live-attention.ts</code></td>
+              <td>Manifesto prompts and examples, with the DAE plan as background and each station's lens.</td>
             </tr>
             <tr>
               <td><code>text/live-realization.ts</code></td>

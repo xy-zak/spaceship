@@ -14,8 +14,8 @@ import { createFutureKnobs } from "./future-knobs.ts"
 import { layoutLines } from "./layout.ts"
 import { circleOf } from "./links.ts"
 import { liveAttention } from "./live-attention.ts"
-import { controlLine, liveSource } from "./live-completion.ts"
-import { liveDimension } from "./live-dimension.ts"
+import { controlLine, liveSourceFor } from "./live-completion.ts"
+import { liveDimensionFor } from "./live-dimension.ts"
 import { liveRealization } from "./live-realization.ts"
 import { createPointer, type Aim, type PointerTarget, type SelectionPreview, type Zone } from "./pointer.ts"
 import { wordSpans, type Span } from "./segments.ts"
@@ -59,7 +59,7 @@ measure.font = style.font
 const isLive = new URLSearchParams(location.search).get("live") === "true"
 /** Without a station the editor runs alone from the opening, for development. */
 const station = stationOf(location.search)
-const stream = createTextStream(isLive ? liveSource : simulatedSource, render)
+const stream = createTextStream(isLive ? liveSourceFor(station) : simulatedSource, render)
 const attention = createAttentionKnobs({
   source: isLive ? liveAttention : simulatedAttention,
   textElement: element,
@@ -75,11 +75,17 @@ const futureKnobs = createFutureKnobs({
   linkPath: $<SVGPathElement>("#future-links"),
   tunedLinkPath: $<SVGPathElement>("#future-tuned-link"),
   hud: $<SVGGElement>("#future-hud"),
-  source: isLive ? liveDimension : simulatedDimension,
+  source: isLive ? liveDimensionFor(station) : simulatedDimension,
   realization: isLive ? liveRealization : simulatedRealization,
   textElement: element,
   context: () => ({ text: shownText, leads: attention.leads() }),
   onChange: invalidateFuture,
+  onChoosing: (choosing) => {
+    isChoosing = choosing
+    // a choice rewrites the future anyway, and on one Ollama slot the menu would wait behind the continuation
+    if (choosing) stream.stop()
+    else restartDwell()
+  },
 })
 const drawAuthorMarks = createAuthorMarks($<SVGGElement>("#author-brackets"), $("#bookmarks"))
 let caret: Caret = { line: 0, x: 0 }
@@ -98,6 +104,8 @@ let topUpTimer: number | undefined
 let retryAt = 0
 let retryMs = RETRY_MS
 let isFutureStale = false
+/** A future knob is choosing its dimension, so no continuation is generated until it has chosen or gone. */
+let isChoosing = false
 let prepared: { text: string; layout: PreparedTextWithSegments } | undefined
 /** The previous drag point, for how fast the knob moves. */
 let lastDrag: { point: Point; at: number } | undefined
@@ -322,12 +330,13 @@ function restartDwell() {
   clearTimeout(dwellTimer)
   const dwell = ++dwellCount
   dwellTimer = setTimeout(() => {
+    if (isChoosing) return
     if (isFutureStale) regenerateFuture()
     else topUp()
     afterStreaming(() => {
       if (dwell !== dwellCount) return
-      attention.prefetch()
       futureKnobs.preload()
+      attention.prefetch()
     })
   }, DWELL_MS)
 }
@@ -369,7 +378,8 @@ function scheduleTopUp() {
 }
 
 function topUp() {
-  if (isRegenerationHeld || stream.activity().isGenerating || performance.now() < retryAt) return
+  // a stale future is regenerated once the dwell ends, so topping it up would be thrown away
+  if (isRegenerationHeld || isChoosing || isFutureStale || stream.activity().isGenerating || performance.now() < retryAt) return
   const words = countWords(stream.text)
   const wanted = wordsToWrite()
   if (words - (shownCount ?? 0) >= FUTURE_WORDS || wanted <= 0) return

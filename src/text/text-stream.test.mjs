@@ -27,3 +27,23 @@ test("a generation stops once it has the words it asked for, ending the source's
   assert.equal(await stream.generate("buffer low", steering, 10), "done")
   assert.equal(stream.text, "Design education must one two three one two three four five six")
 })
+
+test("stopping keeps the streamed words but the last, which may be cut off", async () => {
+  let release
+  const source = {
+    async *complete() {
+      yield " one two thr"
+      await new Promise((resolve) => (release = resolve))
+      yield "ee four"
+    },
+  }
+  const stream = createTextStream(source, () => {})
+  stream.seed({ head: "", text: "Design education must", floorWords: 3 })
+  const outcome = stream.generate("buffer low", steering, 10)
+  await stream.streaming()
+  stream.stop()
+  release()
+  assert.equal(await outcome, "aborted")
+  assert.equal(stream.text, "Design education must one two")
+  assert.equal(stream.activity().isGenerating, false)
+})

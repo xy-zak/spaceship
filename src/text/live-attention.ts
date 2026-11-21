@@ -5,19 +5,19 @@ import { wordSpans } from "./segments.ts"
 const MAX_BOXES = 3
 
 const SYSTEM_PROMPT = `
-The user message is the start of a story, cut off where the reader is. Pick the key phrases already in it that the very next words depend on most: the main influences on what comes right after the cut.
+The user message is the start of a manifesto on design education, cut off where the reader is. Pick the key phrases already in it that the very next words depend on most: the main influences on what comes right after the cut.
 
 - Pick 1 to 3 phrases: 1 when a single phrase drives what comes next, more only when several do.
-- Each phrase is an exact, unbroken copy of 2 to 8 consecutive words from the story. Do not skip, change, add or predict words.
+- Each phrase is an exact, unbroken copy of 2 to 8 consecutive words from the manifesto. Do not skip, change, add or predict words.
 - In every phrase, wrap the single word that matters most in [brackets].
 - Output one phrase per line and nothing else.
 
 EXAMPLE
-User: Mara had locked the kitchen an hour ago. Now the alarm went off, but it was not the one on her phone. She lay still and
+User: Design education must teach doubt before style. Every brief should end with a question the client did not ask. A studio is not a
 Assistant:
-locked the [kitchen] an hour ago
-it was [not] the one on her phone
-She lay [still] and
+teach [doubt] before style
+a question the [client] did not ask
+A [studio] is not a
 `.trim()
 
 export const liveAttention: AttentionSource = async function* (text, signal) {

@@ -164,6 +164,7 @@ Already in agreement, no change needed:
   - Cap `head` at 6,000 words.
   - Strength comes from each channel's encoder, and a knob opens at 10% on its channel's first touch (decision 1).
   - Keep the mouse and keyboard input (decision 3).
+  - The continuation's user message keeps the manifesto last, not first: on qwen the cache-friendly order broke sentences and ignored strong controls. Lenses reach the prompts through `liveSourceFor(station)` and `liveDimensionFor(station)`, not `context.lens`.
 - **firmware.md:** strength is a rotary encoder per channel, sent as `strength ch step`, and only the angle sliders are capped, so the pin map, the boot dump and the parts list change (decision 1). It already sends the marker, always sends exact 0 and 1000, and prints `\r\n` line endings.
 
 ## Still unverified (step 1 of the build order)
