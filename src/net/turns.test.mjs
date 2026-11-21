@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
+import { appendTail, lastAuthors } from "../turn-rules.ts"
 import { visibleWindow } from "./turns.ts"
 
 const opening = { station: "opening", text: "Design education must" }
@@ -40,4 +41,18 @@ test("the head keeps only the last 6,000 words", () => {
   assert.equal(floorWords, 200)
   assert.equal(wordCount(head), 6000)
   assert.ok(head.startsWith("Word30 b c"))
+})
+
+test("paragraph breaks survive the window, and every shown word has its author", () => {
+  const turns = [opening, { station: "B", text: "teach doubt." }, { station: "C", text: "\n\nGrades lie" }]
+  const { text, floorWords } = visibleWindow(turns)
+  assert.equal(text, "Design education must teach doubt.\n\nGrades lie")
+  assert.equal(floorWords, 5)
+  const authored = appendTail(turns, "D", "\n\nGrades lie about it")
+  assert.deepEqual(lastAuthors(authored, 7), [
+    { station: "opening", words: 1 },
+    { station: "B", words: 2 },
+    { station: "C", words: 2 },
+    { station: "D", words: 2 },
+  ])
 })

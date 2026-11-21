@@ -568,8 +568,8 @@ export function createFutureKnobs({
 }
 
 /**
- * Calls `onDouble` on a double click whose two presses both landed on `element`. A knob spawned by double clicking the main knob and holding
- * captures that pointer, so the gesture's own double click is delivered to it on release; that one must not delete it.
+ * Calls `onDouble` on a double click whose two presses both landed on `element`. A knob spawned by a Shift press on the main knob captures
+ * that pointer, so two quick Shift presses deliver a double click to it on release; that one must not delete it.
  */
 function onDoubleClick(element: HTMLElement, onDouble: () => void) {
   let presses: number[] = []

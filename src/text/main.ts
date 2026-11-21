@@ -1,16 +1,16 @@
 import { layoutNextLine, prepareWithSegments, type PreparedTextWithSegments } from "@chenglou/pretext"
+import { createAuthorMarks, type AuthorBlock } from "../author-marks.ts"
 import { $ } from "../dom.ts"
 import { abortAll } from "../llm/ollama.ts"
 import { commitTurn, createLivePoster, stationOf, swapTo, turnEvents, visibleWindow } from "../net/turns.ts"
 import { centeredAt, type Point } from "../point.ts"
 import { LENSES, OPENING, type Station } from "../stations.ts"
-import { wordsOf } from "../turn-rules.ts"
+import { appendTail, lastAuthors, splitTail, tidySpace, wordsOf, type AuthorRun, type Turn } from "../turn-rules.ts"
 import { createAttentionKnobs } from "./attention-knobs.ts"
 import { caretAt, isAhead, pointAt, type Caret, type TextMetrics } from "./caret.ts"
 import { simulatedSource } from "./completion.ts"
 import { makeDraggable } from "./drag.ts"
 import { createFutureKnobs } from "./future-knobs.ts"
-import { onPressAndHold } from "./hold.ts"
 import { layoutLines } from "./layout.ts"
 import { circleOf } from "./links.ts"
 import { liveAttention } from "./live-attention.ts"
@@ -22,7 +22,7 @@ import { wordSpans, type Span } from "./segments.ts"
 import { simulatedAttention } from "./simulated-attention.ts"
 import { simulatedDimension } from "./simulated-dimension.ts"
 import { simulatedRealization } from "./simulated-realization.ts"
-import { isSoundOn, setSoundOn, startSound, type Sound } from "./sound/engine.ts"
+import { isSoundOn, setSoundOn, startSound } from "./sound/engine.ts"
 import { sounds } from "./sound/sounds.ts"
 import { showStatus } from "./status-line.ts"
 import { storyLayoutOf, type StoryLayout } from "./story-layout.ts"
@@ -31,14 +31,14 @@ import { createTextStream, type Seed, type Steering } from "./text-stream.ts"
 import { countWords, firstWords } from "./words.ts"
 
 const DWELL_MS = 100
-/** Generated words kept ready past the knob: whenever fewer remain, the stream continues the text, appending, never rewriting. */
-const BUFFER_WORDS = 300
+/**
+ * Generated words kept ready past the knob: whenever fewer remain, the stream continues the text, appending, never rewriting.
+ * It is also the most one continuation writes; with a word limit, a continuation writes no further than the turn may reach.
+ */
+const FUTURE_WORDS = 200
 /** A top-up that adds no words (the source failed or said nothing) is retried after this long, doubling each time up to `MAX_RETRY_MS`. */
 const RETRY_MS = 1000
 const MAX_RETRY_MS = 16000
-/** Double click and hold: the second press, if it starts within `DOUBLE_PRESS_MS` of the first and is held still, opens the fan menu after 100 ms plus this sweep (500 ms in all). */
-const HOLD_MS = 400
-const DOUBLE_PRESS_MS = 400
 /** Drag speed, in px per ms, at which the word tick is softest. */
 const DRAG_SPEED_FULL = 1.2
 /** Tray controls sit flush with each other and the screen's bottom edge, so their brackets are drawn just inside them. */
@@ -81,6 +81,7 @@ const futureKnobs = createFutureKnobs({
   context: () => ({ text: shownText, leads: attention.leads() }),
   onChange: invalidateFuture,
 })
+const drawAuthorMarks = createAuthorMarks($<SVGGElement>("#author-brackets"), $("#bookmarks"))
 let caret: Caret = { line: 0, x: 0 }
 let shownText = ""
 let story: StoryLayout = { content: "", text: "", combined: "", sentences: [] }
@@ -98,13 +99,12 @@ let retryAt = 0
 let retryMs = RETRY_MS
 let isFutureStale = false
 let prepared: { text: string; layout: PreparedTextWithSegments } | undefined
-let holdSound: Sound | undefined
-/** Whether the current press opened the fan menu, so its double click does not also expand or collapse. */
-let didHold = false
 /** The previous drag point, for how fast the knob moves. */
 let lastDrag: { point: Point; at: number } | undefined
-/** The turns the editor was seeded from, to tell a new state from the same one sent again after a reconnect. */
-let seededTurns: string | undefined
+/** The turns the editor was seeded from (none before the first state), to mark each station's words and to tell a new state from the same one sent again after a reconnect. */
+let seededTurns: Turn[] = []
+/** How many new words this turn may add, from the server; null for no limit. */
+let wordLimit: number | null = null
 let postLive: (tail: string, steering: string[]) => void = () => {}
 let isCommitting = false
 
@@ -115,26 +115,18 @@ soundToggle.addEventListener("click", () => {
   showSoundToggle()
 })
 
-// A quick double click expands or collapses; one whose second press was held opened the fan menu instead.
-handle.addEventListener("dblclick", () => (didHold ? (didHold = false) : detachAllOrExpand()))
-handle.addEventListener("pointerenter", ({ buttons, pageX }) => buttons || sounds.knobHover(pageX))
-handle.addEventListener("pointerdown", ({ pageX }) => {
-  didHold = false
-  sounds.knobGrab(pageX)
+// A press with Shift held opens the fan menu: the new future knob takes the press, so the main knob neither scrubs nor sounds its grab.
+handle.addEventListener("pointerdown", (event) => {
+  if (!event.shiftKey) return
+  event.stopImmediatePropagation()
+  // keeps Shift and press from extending a text selection
+  event.preventDefault()
+  futureKnobs.spawn({ x: event.pageX, y: event.pageY }, event.pointerId)
 })
-onPressAndHold(
-  handle,
-  HOLD_MS,
-  ({ pageX, pageY, pointerId }) => {
-    didHold = true
-    futureKnobs.spawn({ x: pageX, y: pageY }, pointerId)
-  },
-  {
-    onSweep: () => (holdSound = sounds.holdSweep(circleOf(handle).center.x, HOLD_MS / 1000)),
-    onSweepEnd: (completed) => completed || holdSound?.stop(),
-    secondPressWithin: DOUBLE_PRESS_MS,
-  },
-)
+// A double click expands or collapses; Shift presses open fan menus instead.
+handle.addEventListener("dblclick", ({ shiftKey }) => shiftKey || detachAllOrExpand())
+handle.addEventListener("pointerenter", ({ buttons, pageX }) => buttons || sounds.knobHover(pageX))
+handle.addEventListener("pointerdown", ({ pageX }) => sounds.knobGrab(pageX))
 // Dragging scrubs at once, forward or back.
 makeDraggable(handle, {
   onDrag: (point) => {
@@ -173,17 +165,19 @@ else start({ head: "", text: OPENING, floorWords: countWords(OPENING) })
 async function followTurns(station: Station) {
   const label = `${station} · ${LENSES[station]}`
   turnElement.hidden = false
+  turnElement.dataset.station = station
   for await (const event of turnEvents()) {
     if (event.type === "offline") turnElement.value = `${label} · reconnecting…`
     if (event.type !== "state") continue
     const { active, turns } = event.state
     if (active !== station) return swapTo("view")
-    if (seededTurns === undefined) {
-      seededTurns = JSON.stringify(turns)
+    wordLimit = event.state.wordLimit
+    if (!seededTurns.length) {
+      seededTurns = turns
       start(visibleWindow(turns))
       postLive = createLivePoster(station)
       report()
-    } else if (JSON.stringify(turns) !== seededTurns) location.reload()
+    } else if (JSON.stringify(turns) !== JSON.stringify(seededTurns)) location.reload()
     if (!isCommitting) turnElement.value = label
   }
 }
@@ -196,7 +190,7 @@ function start(seed: Seed) {
 }
 
 async function passTurn(station: Station) {
-  if (isCommitting || seededTurns === undefined) return
+  if (isCommitting || !seededTurns.length) return
   isCommitting = true
   turnElement.value = "passing…"
   abortAll()
@@ -206,15 +200,18 @@ async function passTurn(station: Station) {
   turnElement.value = "not sent, press Enter again"
 }
 
-/** The knob stops at the column's right edge, as no line reaches past it, and never shows fewer words than the floor. */
+/** The knob stops at the column's right edge, as no line reaches past it, never shows fewer words than the floor, and stops at the word limit. */
 function moveTo({ x, y }: Point) {
   const { left, width } = element.getBoundingClientRect()
   let point = { x: Math.min(x, left + scrollX + width), y }
   caret = caretAt(point, metricsOf())
   const floor = caretAfterWords(stream.floorWords)
-  if (floor && isAhead(floor, caret)) {
-    caret = floor
-    point = pointAt(floor, metricsOf())
+  const ceiling = ceilingWords()
+  const limit = ceiling === undefined ? undefined : caretAfterWords(ceiling)
+  const clamped = floor && isAhead(floor, caret) ? floor : limit && isAhead(caret, limit) ? limit : undefined
+  if (clamped) {
+    caret = clamped
+    point = pointAt(clamped, metricsOf())
   }
   handle.style.translate = centeredAt(point, handle.offsetWidth)
   render()
@@ -266,6 +263,8 @@ function render() {
   story = storyLayoutOf(lines, stream.text)
   if (element.textContent !== story.content) element.textContent = story.content
   shownText = text
+  if (station && seededTurns.length)
+    drawAuthorMarks(authorBlocks(text, lastAuthors(appendTail(seededTurns, station, tail(), wordLimit), count)), element.getBoundingClientRect().left + scrollX)
   attention.update(text)
   futureKnobs.follow(story)
   report()
@@ -283,7 +282,9 @@ function report() {
   const activity = stream.activity()
   const buffer = Math.max(0, countWords(stream.text) - (shownCount ?? 0))
   handle.toggleAttribute("data-generating", activity.isGenerating)
-  handle.style.setProperty("--buffer", `${Math.min(1, buffer / BUFFER_WORDS)}`)
+  // full once the text holds all a generation would add here: `FUTURE_WORDS`, or the rest of the word limit
+  const ready = Math.min(FUTURE_WORDS, (ceilingWords() ?? Infinity) - (shownCount ?? 0))
+  handle.style.setProperty("--buffer", `${ready > 0 ? Math.min(1, buffer / ready) : 1}`)
   showStatus(statusElement, {
     ...activity,
     words: shownCount ?? 0,
@@ -291,6 +292,7 @@ function report() {
     boxes: attention.leads().length,
     steering: futureKnobs.controls().length,
     pinned: futureKnobs.pinnedCount(),
+    turn: station && seededTurns.length ? { words: wordsOf(splitTail(seededTurns, tail()).fresh).length, limit: wordLimit } : undefined,
   })
   // clipped to the server's limits, which would refuse the whole post
   postLive(
@@ -302,9 +304,18 @@ function report() {
   )
 }
 
-/** The shown words after the floor, single-spaced: the text this turn hands the server. */
+/** The most words the knob may show: the floor, the words of the last turn this one keeps, and the word limit; undefined for no limit. */
+function ceilingWords() {
+  if (wordLimit === null || !seededTurns.length) return
+  const text = tidySpace(stream.text)
+  const { kept } = splitTail(seededTurns, text.slice(firstWords(text, stream.floorWords).length))
+  return stream.floorWords + countWords(kept) + wordLimit
+}
+
+/** The shown words after the floor, single-spaced with blank lines between paragraphs: the text this turn hands the server. */
 function tail() {
-  return wordsOf(shownText).slice(stream.floorWords).join(" ")
+  const text = tidySpace(stream.text)
+  return tidySpace(text.slice(firstWords(text, stream.floorWords).length, firstWords(text, shownCount ?? 0).length))
 }
 
 function restartDwell() {
@@ -332,7 +343,14 @@ function afterStreaming(request: () => void) {
 function regenerateFuture() {
   isFutureStale = false
   restCount = shownCount ?? 0
-  stream.regenerate(shownCount ?? 0, "steering changed", steering())
+  stream.truncate(restCount)
+  const words = wordsToWrite()
+  if (words > 0) stream.generate("steering changed", steering(), words)
+}
+
+/** How many words a continuation from the end of the text writes: `FUTURE_WORDS`, or fewer once the word limit is that close. */
+function wordsToWrite() {
+  return Math.min(FUTURE_WORDS, (ceilingWords() ?? Infinity) - countWords(stream.text))
 }
 
 function steering(): Steering {
@@ -340,7 +358,7 @@ function steering(): Steering {
 }
 
 /**
- * Keeps at least `BUFFER_WORDS` generated words past the knob, continuing the text from its end whenever fewer remain.
+ * Keeps at least `FUTURE_WORDS` generated words past the knob, or as many as the word limit allows, continuing the text from its end whenever fewer remain.
  * Asked after every change, but run on the next task, after a finished generation has reported how it went.
  */
 function scheduleTopUp() {
@@ -353,8 +371,9 @@ function scheduleTopUp() {
 function topUp() {
   if (isRegenerationHeld || stream.activity().isGenerating || performance.now() < retryAt) return
   const words = countWords(stream.text)
-  if (words - (shownCount ?? 0) >= BUFFER_WORDS) return
-  stream.generate("buffer low", steering()).then(
+  const wanted = wordsToWrite()
+  if (words - (shownCount ?? 0) >= FUTURE_WORDS || wanted <= 0) return
+  stream.generate("buffer low", steering(), wanted).then(
     (outcome) => outcome === "done" && settleTopUp(words),
     (error) => (console.error(error), settleTopUp(words)),
   )
@@ -374,7 +393,8 @@ function settleTopUp(wordsBefore: number) {
 
 function prepareWords() {
   const text = stream.text
-  if (prepared?.text !== text) prepared = { text, layout: prepareWithSegments(text, style.font) }
+  // pre-wrap, so the model's blank lines break the text into paragraphs; tidied, so no other whitespace shows
+  if (prepared?.text !== text) prepared = { text, layout: prepareWithSegments(tidySpace(text), style.font, { whiteSpace: "pre-wrap" }) }
   return prepared.layout
 }
 
@@ -389,12 +409,28 @@ function pointerTargets(): PointerTarget[] {
   ]
 }
 
+/** Each station's run of the shown text; the opening is left unmarked, and the run ending at the knob stays open, as the knob marks its end. */
+function authorBlocks(text: string, authors: AuthorRun[]): AuthorBlock[] {
+  const words = [...text.matchAll(/\S+/g)]
+  let next = words.length - authors.reduce((sum, { words }) => sum + words, 0)
+  return authors.flatMap(({ station, words: count }) => {
+    const [first, last] = [words[next], words[next + count - 1]]
+    next += count
+    if (station === "opening" || !count) return []
+    return [{ station, range: rangeOf({ start: first.index, end: last.index + last[0].length }), isOpen: next === words.length }]
+  })
+}
+
 /** The viewport boxes of a span of the shown text, one per line it covers. */
-function clientRectsOf({ start, end }: Span) {
+function clientRectsOf(span: Span) {
+  return [...rangeOf(span).getClientRects()].filter(({ width }) => width > 0)
+}
+
+function rangeOf({ start, end }: Span) {
   const range = document.createRange()
   range.setStart(...domPointAt(element, start))
   range.setEnd(...domPointAt(element, end))
-  return [...range.getClientRects()].filter(({ width }) => width > 0)
+  return range
 }
 
 /**

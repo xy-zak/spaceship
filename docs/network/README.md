@@ -38,6 +38,8 @@ export const STATIONS = ["B", "C", "D"] as const
 export type Station = (typeof STATIONS)[number]
 export const OPENING = "Design education must"
 export const MODEL = "gpt-oss:20b"
+export const WORD_LIMITS = { short: 50, medium: 100, long: 200, unlimited: null } as const
+export const DEFAULT_WORD_LIMIT = "medium"
 export const LENSES: Record<Station, string>
 export function nextStation(station: Station): Station
 
@@ -46,23 +48,24 @@ import type { Station } from "./stations.ts"
 export type Turn = { station: "opening" | Station; text: string }
 export const wordsOf = (text: string) => text.match(/\S+/g) ?? []
 export function floorOf(turns: Turn[]): Turn[] // turns.length === 1 ? turns : turns.slice(0, -1)
-export function joinTurns(turns: Turn[]): string // non-empty texts joined by one space
+export function joinTurns(turns: Turn[]): string // non-empty texts joined by one space, or by the blank line a turn starts with
 export function splitTail(turns: Turn[], tail: string): { kept: string; fresh: string }
 // kept = the tail's leading words that equal the last turn's leading words ("" when only the opening exists); fresh = the rest
-export function appendTail(turns: Turn[], station: Station, tail: string): Turn[]
-// the last turn becomes `kept`, then `fresh` is appended as station's turn
+export function appendTail(turns: Turn[], station: Station, tail: string, wordLimit: number | null = null): Turn[]
+// the last turn becomes `kept`, then the first `wordLimit` words of `fresh` are appended as station's turn
 ```
 
-The server's commit uses `appendTail`. The view shades live text with it as well, so the two can never disagree.
+The server's commit uses `appendTail`. The view marks live text with it as well, so the two can never disagree.
 
 ### Data
 
 ```
-State = { active: "B"|"C"|"D", turns: Turn[] }   turns[0] is the opening
+State = { active: "B"|"C"|"D", turns: Turn[], wordLimit: number | null }   turns[0] is the opening
 Live  = { station: "B"|"C"|"D", tail: string, steering: string[] }
 ```
 
-- **Tail:** the shown text after the floor, up to the main knob. Words are joined by single spaces. It never includes text generated past the knob.
+- **Tail:** the shown text after the floor, up to the main knob. Words are joined by single spaces, paragraphs by one blank line (`\n\n`), which may also open the tail; `tidySpace` in `src/turn-rules.ts` writes it that way. It never includes text generated past the knob.
+- **Word limit:** each turn adds at most `wordLimit` new words, not counting the words it keeps of the last turn; null is no limit. The server is started with a preset from `WORD_LIMITS`, as `WORD_LIMIT=short|medium|long|unlimited` (default `medium`, 100 words), and refuses to start on any other name. The limit is sent with every state but not saved in the manifesto file. The editor's knob stops at it, and the commit and the view clip a longer tail to it.
 - **Empty turns are kept.** Every commit appends exactly one turn, and a turn's text may be `""`. The floor is `floorOf(turns)` including any empty turns, and the document text is `joinTurns(turns)`.
 
 ### Routes

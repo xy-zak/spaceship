@@ -26,28 +26,38 @@
         bottom: 0;
       }
       main {
-        width: min(64ch, 100% - 2 * var(--padding));
+        width: min(90ch, 100% - 2 * var(--padding));
         margin-inline: auto;
         padding-block: var(--padding);
         line-height: var(--line);
+        /* A turn's text breaks into paragraphs at its blank lines. */
+        white-space: pre-line;
       }
-      /* One shade per author, so the eye can follow who wrote what; orange is the active station's live text. */
+      /* Each station's words are bracketed, tagged and highlighted on hover (in the theme); peach is the active station's live text. */
       [data-station="opening"] {
-        color: var(--ink-3);
-        font-style: italic;
-      }
-      [data-station="C"] {
         color: var(--ink-2);
-      }
-      [data-station="D"] {
-        color: var(--ink-3);
+        font-style: italic;
       }
       [data-live] {
         color: var(--hot);
       }
+      #banner[data-station] {
+        padding-left: var(--gap);
+        border-left: 3px solid var(--station);
+        color: var(--ink);
+      }
+      #authors {
+        position: absolute;
+        top: 0;
+        left: 0;
+        overflow: visible;
+        pointer-events: none;
+      }
     </style>
   </head>
   <body>
+    <svg id="authors" width="1" height="1" aria-hidden="true"><g id="author-brackets"></g></svg>
+    <div id="bookmarks" aria-hidden="true"></div>
     <header><output id="banner">connecting…</output></header>
     <main id="manifesto"></main>
     <footer><output id="steering"></output></footer>

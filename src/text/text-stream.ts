@@ -4,7 +4,7 @@ import { countWords, firstWords } from "./words.ts"
 
 export type GenerationTrigger = "buffer low" | "steering changed"
 
-/** How a call to `generate` ended: `busy` if another generation was running, `aborted` if cut short by `truncate` or `regenerate`. */
+/** How a call to `generate` ended: `busy` if another generation was running, `aborted` if cut short by `truncate`. */
 export type GenerationOutcome = "busy" | "aborted" | "done"
 
 /** What leads a continuation: key phrases from the text, and dimensions tuned for what comes next. Either may be empty. */
@@ -12,10 +12,10 @@ export type Steering = { leads: Lead[]; controls: Control[] }
 
 export type TextSource = {
   /**
-   * Streams text that continues `prefix`, led by `steering`.
+   * Streams about `words` words that continue `prefix`, led by `steering`.
    * Must stop (by throwing or returning) once `signal` aborts.
    */
-  complete(prefix: string, steering: Steering, signal: AbortSignal): AsyncIterable<string>
+  complete(prefix: string, steering: Steering, words: number, signal: AbortSignal): AsyncIterable<string>
 }
 
 /** How the latest generation went: whether it is still running, how long its first chunk took, and how fast words arrived after that. */
@@ -48,7 +48,6 @@ export function createTextStream({ complete }: TextSource, onChange: () => void)
     seed,
     generate,
     truncate,
-    regenerate,
     activity,
     streaming,
   }
@@ -79,8 +78,8 @@ export function createTextStream({ complete }: TextSource, onChange: () => void)
     }
   }
 
-  /** Continues the text from its end, appending; never rewrites it. Rejects if the source fails. */
-  async function generate(trigger: GenerationTrigger, steering: Steering): Promise<GenerationOutcome> {
+  /** Continues the text from its end by at most `words` words, appending; never rewrites it. Rejects if the source fails. */
+  async function generate(trigger: GenerationTrigger, steering: Steering, words: number): Promise<GenerationOutcome> {
     if (active) return "busy"
 
     const controller = (active = new AbortController())
@@ -92,7 +91,7 @@ export function createTextStream({ complete }: TextSource, onChange: () => void)
     console.log(`generation ${generationId} start by ${trigger} after ${countWords(prefix)} words`)
 
     try {
-      for await (const chunk of complete(head ? `${head} ${prefix}` : prefix, steering, signal)) {
+      for await (const chunk of complete(head ? `${head} ${prefix}` : prefix, steering, words, signal)) {
         if (signal.aborted) return "aborted"
         const now = performance.now()
         if (started.firstChunkAt === undefined) {
@@ -101,7 +100,12 @@ export function createTextStream({ complete }: TextSource, onChange: () => void)
         } else started.words += countWords(chunk)
         started.lastChunkAt = now
         text += chunk
+        // a word past the last one means that one is complete; stopping here ends the request, so the model writes no more than is wanted
+        const fresh = text.slice(prefix.length)
+        const isFull = countWords(fresh) > words
+        if (isFull) text = prefix + firstWords(fresh, words)
         onChange()
+        if (isFull) break
       }
       if (signal.aborted) return "aborted"
       console.log(`generation ${generationId} done with ${countWords(text) - countWords(prefix)} words`)
@@ -130,11 +134,6 @@ export function createTextStream({ complete }: TextSource, onChange: () => void)
   function truncate(count: number) {
     cancel()
     text = firstWords(text, Math.max(count, floorWords))
-  }
-
-  function regenerate(count: number, trigger: GenerationTrigger, steering: Steering) {
-    truncate(count)
-    return generate(trigger, steering)
   }
 
   function cancel() {

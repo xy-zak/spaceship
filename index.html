@@ -19,20 +19,20 @@
       }
       :root {
         /* Each box covering a word adds one layer, so overlaps read darker. */
-        --attention: rgb(255 255 255 / 0.14);
+        --attention: color-mix(in srgb, var(--ink) 12%, transparent);
         --hair: 1px;
         --stroke: 1.5px;
         --selected-stroke: 3px;
         --dash: 3 3;
         /* Read by the HUD to measure its labels. */
-        --hud-size: 10px;
-        --hud-line: 14px;
-        --numeral-size: 9px;
-        --tray-height: 18px;
+        --hud-size: 12px;
+        --hud-line: 16px;
+        --numeral-size: 11px;
+        --tray-height: 24px;
         /* Room each side of the column for pinned future knobs and their labels. */
         --margin: 24ch;
-        --knob: 14px;
-        --knob-future: 12px;
+        --knob: 16px;
+        --knob-future: 14px;
         --fast: 120ms;
         --settle: 300ms;
         /* How long an orange trace takes to fade. */
@@ -49,7 +49,7 @@
         padding-bottom: var(--tray-height);
       }
       #text {
-        width: clamp(30ch, 100% - 2 * var(--margin), 64ch);
+        width: clamp(30ch, 100% - 2 * var(--margin), 90ch);
         margin-inline: auto;
         padding-block: var(--padding);
         white-space: pre;
@@ -243,12 +243,6 @@
           border-top-color: var(--hot);
           animation: spin 0.9s linear infinite;
         }
-        /* The hold sweep takes the whole face while it runs. */
-        &[data-holding] {
-          border-color: var(--hot);
-          background: conic-gradient(var(--hot) calc(var(--fill, 0) * 1turn), transparent 0);
-          transition: none;
-        }
         &[data-dragging] {
           border-color: var(--hot);
           cursor: grabbing;
@@ -437,6 +431,9 @@
         [data-field="words"] b {
           width: 9ch;
         }
+        [data-field="turn"] b {
+          width: 7ch;
+        }
         [data-field="boxes"] b,
         [data-field="steering"] b,
         [data-field="pinned"] b {
@@ -459,6 +456,7 @@
       #turn {
         padding-inline: var(--gap);
         border-right: var(--hair) solid var(--ink-5);
+        border-left: 3px solid var(--station, transparent);
         color: var(--ink);
       }
       #sound-toggle,
@@ -513,7 +511,7 @@
         }
         /* orange while the hand changes something: dragging, or pulling the knob */
         &[data-live] {
-          --line: rgb(255 90 31 / 0.3);
+          --line: color-mix(in srgb, var(--hot) 30%, transparent);
         }
         /* hairlines edge to edge, each leaving a 12px gap around the point */
         .hairline {
@@ -576,7 +574,7 @@
         }
         &[data-steer="pulling"] .vector {
           display: inline;
-          stroke: rgb(255 90 31 / 0.7);
+          stroke: color-mix(in srgb, var(--hot) 70%, transparent);
         }
         &[data-steer="pulling"] .vector-ticks {
           display: inline;
@@ -587,7 +585,7 @@
           stroke: var(--ink-4);
           stroke-dasharray: var(--dash);
         }
-        /* past the knob, where a press steers, a high-contrast dot marks the exact point: white, ringed in the page color so it reads over anything */
+        /* past the knob, where a press steers, a high-contrast dot marks the exact point: ink, ringed in the page color so it reads over anything */
         .dot {
           position: absolute;
           top: 0;
@@ -636,6 +634,7 @@
   <body>
     <div id="text"></div>
     <svg id="links" aria-hidden="true">
+      <g id="author-brackets"></g>
       <path id="attention-links" />
       <path id="attention-active-link" />
       <g id="future-hud"></g>
@@ -646,8 +645,9 @@
       id="pointer"
       class="knob"
       type="button"
-      aria-label="drag to scrub the text forward or back, double click to expand attention highlights or remove everything attached, double click and hold to open the fan menu"
+      aria-label="drag to scrub the text forward or back, double click to expand attention highlights or remove everything attached, shift and drag to open the fan menu"
     ></button>
+    <div id="bookmarks" aria-hidden="true"></div>
     <template id="future-knob">
       <button class="knob future" type="button" aria-label="future knob, …, double click to delete"><span>…</span></button>
     </template>

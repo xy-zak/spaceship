@@ -1,6 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
-import { OPENING, STATIONS, nextStation } from "../src/stations.ts"
+import { DEFAULT_WORD_LIMIT, OPENING, STATIONS, WORD_LIMITS, nextStation } from "../src/stations.ts"
 import { appendTail } from "../src/turn-rules.ts"
 
 const MAX_BODY_CHARS = 256 * 1024
@@ -12,21 +12,27 @@ const PING_MS = 15_000
 const MAX_BACKLOG_BYTES = 1_000_000
 const LOCAL_ADDRESSES = ["127.0.0.1", "::1", "::ffff:127.0.0.1"]
 
-/** Adds the turn routes to both `vite` and `vite preview`, ahead of Vite's own middleware. */
-export function turns({ file }) {
+/** Adds the turn routes to both `vite` and `vite preview`, ahead of Vite's own middleware. `wordLimit` names one of `WORD_LIMITS`. */
+export function turns({ file, wordLimit }) {
   return {
     name: "turns",
     configureServer(server) {
-      server.middlewares.use(createTurnServer(file))
+      server.middlewares.use(createTurnServer(file, wordLimit))
     },
     configurePreviewServer(server) {
-      server.middlewares.use(createTurnServer(file))
+      server.middlewares.use(createTurnServer(file, wordLimit))
     },
   }
 }
 
-/** Owns the turn state, the live text and the event streams; returns a connect-style `(req, res, next)` handler for `/api/*`. */
-export function createTurnServer(file) {
+/**
+ * Owns the turn state, the live text and the event streams; returns a connect-style `(req, res, next)` handler for `/api/*`.
+ * Every state it sends carries the word limit, which is configuration and so is not saved with the manifesto.
+ */
+export function createTurnServer(file, wordLimitName = DEFAULT_WORD_LIMIT) {
+  if (!Object.hasOwn(WORD_LIMITS, wordLimitName))
+    throw new Error(`WORD_LIMIT "${wordLimitName}" is unknown; expected one of ${Object.keys(WORD_LIMITS).join(", ")}`)
+  const wordLimit = WORD_LIMITS[wordLimitName]
   let state = loadState(file)
   let live
   const clients = new Set()
@@ -45,7 +51,7 @@ export function createTurnServer(file) {
       const body = await readJson(req)
       refuseUnless(isStation(body?.station) && isTail(body.tail), 400, "expected { station, tail }")
       refuseUnlessActive(body.station)
-      send(res, 200, change(applyCommit(state, body.station, body.tail)))
+      send(res, 200, change(applyCommit(state, body.station, body.tail, wordLimit)))
     },
     "POST /api/skip": (req, res) => {
       refuseUnless(isLocal(req), 403, "localhost only")
@@ -73,7 +79,7 @@ export function createTurnServer(file) {
 
   function subscribe(req, res) {
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" })
-    res.write(`retry: 1000\n\n${frame("state", state)}${live ? frame("live", live) : ""}`)
+    res.write(`retry: 1000\n\n${frame("state", withWordLimit(state))}${live ? frame("live", live) : ""}`)
     clients.add(res)
     const ping = setInterval(() => res.write("event: ping\ndata:\n\n"), PING_MS)
     // res, not req: req's "close" fires as soon as its (empty) body is read
@@ -92,8 +98,13 @@ export function createTurnServer(file) {
     saveState(file, next)
     state = next
     live = undefined
-    broadcast("state", state)
-    return state
+    const sent = withWordLimit(state)
+    broadcast("state", sent)
+    return sent
+  }
+
+  function withWordLimit(state) {
+    return { ...state, wordLimit }
   }
 
   function broadcast(type, data) {
@@ -151,8 +162,11 @@ const isLocal = (req) => LOCAL_ADDRESSES.includes(req.socket.remoteAddress)
 
 const initialState = () => ({ active: STATIONS[0], turns: [{ station: "opening", text: OPENING }] })
 
-/** Pure: credits the tail's leading words that match the last turn to that turn, appends the rest as the new turn, and passes the turn on. */
-export const applyCommit = ({ turns }, station, tail) => ({ active: nextStation(station), turns: appendTail(turns, station, tail) })
+/** Pure: credits the tail's leading words that match the last turn to that turn, appends the rest (at most `wordLimit` words) as the new turn, and passes the turn on. */
+export const applyCommit = ({ turns }, station, tail, wordLimit = null) => ({
+  active: nextStation(station),
+  turns: appendTail(turns, station, tail, wordLimit),
+})
 
 function parseState(json) {
   try {

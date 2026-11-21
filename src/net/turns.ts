@@ -1,8 +1,9 @@
 import { STATIONS, type Station } from "../stations.ts"
 import { sentenceSpans } from "../text/segments.ts"
-import { floorOf, joinTurns, wordsOf, type Turn } from "../turn-rules.ts"
+import { floorOf, joinTurns, tidySpace, wordsOf, type Turn } from "../turn-rules.ts"
 
-export type TurnState = { active: Station; turns: Turn[] }
+/** `wordLimit` is how many new words a turn may add, null for no limit. */
+export type TurnState = { active: Station; turns: Turn[]; wordLimit: number | null }
 export type Live = { station: Station; tail: string; steering: string[] }
 export type TurnEvent = { type: "state"; state: TurnState } | { type: "live"; live: Live } | { type: "offline" }
 
@@ -105,7 +106,7 @@ export function visibleWindow(turns: Turn[], minLockedWords = MIN_LOCKED_WORDS) 
   const shownLocked = locked.slice(cut)
   return {
     head: wordsOf(locked.slice(0, cut)).slice(-MAX_HEAD_WORDS).join(" "),
-    text: last ? `${shownLocked} ${last}` : shownLocked,
+    text: tidySpace(`${shownLocked} ${last}`),
     floorWords: wordsOf(shownLocked).length,
   }
 }

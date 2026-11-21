@@ -11,7 +11,7 @@
 ## Styling
 
 1. Use modern CSS, use css variables to ensure style consistency, allow nesting. Use simple grid and flexbox for layout
-2. Simple monospace font, black/white high contrast. Uniform font size and simple consistent spacing.
+2. Simple monospace font on the Catppuccin Latte palette in `src/theme.css`: dark text on a light background, one accent per station. Uniform font size and simple consistent spacing.
 3. Use system default styles to reduce the use of css.
 
 ## Code organization

@@ -9,6 +9,8 @@ import { nextStation } from "../src/stations.ts"
 import { applyCommit, createTurnServer } from "./turns.mjs"
 
 const opening = { station: "opening", text: "Design education must" }
+/** A state as the server sends it: with the default word limit, which is not saved. */
+const sent = (state) => ({ ...state, wordLimit: 100 })
 
 test("commit split", () => {
   const cases = [
@@ -26,7 +28,8 @@ test("commit split", () => {
     ["teach doubt before style.", "teach doubt before style.", "teach doubt before style.", ""],
     ["teach doubt before style.", "learn doubt before", "", "learn doubt before"],
     ["teach doubt before style.", "teach doubt before style Every", "teach doubt before", "style Every"],
-    ["teach doubt before style.", "teach doubt\n\nbefore   style. Grades", "teach doubt before style.", "Grades"],
+    ["teach doubt before style.", "teach doubt\n\nbefore   style.\n \nGrades ", "teach doubt\n\nbefore style.", "\n\nGrades"],
+    ["teach doubt.", "\n\nteach doubt. Grades", "\n\nteach doubt.", "Grades"],
     ["", "a b", "", "a b"],
   ]
   for (const [previous, tail, previousAfter, fresh] of cases) {
@@ -40,6 +43,26 @@ test("commit split", () => {
   }
 })
 
+test("a turn adds at most its word limit, after the words it keeps", async (t) => {
+  const turns = [opening, { station: "B", text: "teach doubt." }]
+  assert.deepEqual(applyCommit({ active: "C", turns }, "C", "teach doubt.\n\nGrades lie about it", 2).turns.slice(1), [
+    { station: "B", text: "teach doubt." },
+    { station: "C", text: "\n\nGrades lie" },
+  ])
+  assert.deepEqual(applyCommit({ active: "C", turns }, "C", "teach doubt. Grades", 2).turns.at(-1), { station: "C", text: "Grades" })
+
+  const file = join(mkdtempSync(join(tmpdir(), "turns-")), "manifesto.json")
+  assert.throws(() => createTurnServer(file, "huge"), /WORD_LIMIT "huge" is unknown/)
+  assert.throws(() => createTurnServer(file, "toString"), /is unknown/)
+  const { base } = await startServer(t, file, "short")
+  const words = Array.from({ length: 60 }, (_, i) => `w${i}`).join(" ")
+  const { body } = await post(base, "/api/commit", { station: "B", tail: words })
+  assert.equal(body.wordLimit, 50)
+  assert.equal(body.turns.at(-1).text, words.split(" ").slice(0, 50).join(" "))
+  const unlimited = await startServer(t, join(mkdtempSync(join(tmpdir(), "turns-")), "manifesto.json"), "unlimited")
+  assert.equal((await post(unlimited.base, "/api/commit", { station: "B", tail: words })).body.turns.at(-1).text, words)
+})
+
 test("turns rotate B → C → D → B", () => {
   assert.deepEqual(["B", "C", "D"].map(nextStation), ["C", "D", "B"])
 })
@@ -49,7 +72,7 @@ test("events start with state and relay live and commit", async (t) => {
   const controller = new AbortController()
   t.after(() => controller.abort())
   const watcher = turnEvents(`${base}/api/events`, controller.signal)
-  const started = { type: "state", data: { active: "B", turns: [opening] } }
+  const started = { type: "state", data: sent({ active: "B", turns: [opening] }) }
   assert.deepEqual((await watcher.next()).value, started)
 
   const live = { station: "B", tail: "teach doubt", steering: ["stance: very radical (strong)"] }
@@ -57,7 +80,7 @@ test("events start with state and relay live and commit", async (t) => {
   assert.deepEqual((await watcher.next()).value, { type: "live", data: live })
   assert.deepEqual(await events(base, 2), [started, { type: "live", data: live }])
 
-  const committed = { active: "C", turns: [opening, { station: "B", text: "teach doubt" }] }
+  const committed = sent({ active: "C", turns: [opening, { station: "B", text: "teach doubt" }] })
   assert.deepEqual(await post(base, "/api/commit", { station: "B", tail: "teach doubt" }), { status: 200, body: committed })
   assert.deepEqual((await watcher.next()).value, { type: "state", data: committed })
   assert.deepEqual(await events(base, 1), [{ type: "state", data: committed }])
@@ -81,7 +104,7 @@ test("refuses bad posts", async (t) => {
   assert.equal(await status("/api/commit", { station: "B", tail: "x".repeat(50_001) }), 400)
   assert.equal(await status("/api/commit", { station: "B", tail: "x".repeat(300_000) }), 413)
   assert.equal(await status("/api/nothing", {}), 404)
-  assert.deepEqual(await events(base, 1), [{ type: "state", data: { active: "B", turns: [opening] } }])
+  assert.deepEqual(await events(base, 1), [{ type: "state", data: sent({ active: "B", turns: [opening] }) }])
 })
 
 test("skip and reset are refused from the LAN", async () => {
@@ -97,7 +120,7 @@ test("skip rotates, reset archives and starts again", async (t) => {
   const { base, file } = await startServer(t)
   await post(base, "/api/commit", { station: "B", tail: "teach doubt" })
   assert.equal((await post(base, "/api/skip")).body.active, "D")
-  assert.deepEqual((await post(base, "/api/reset")).body, { active: "B", turns: [opening] })
+  assert.deepEqual((await post(base, "/api/reset")).body, sent({ active: "B", turns: [opening] }))
   const archive = readdirSync(dirname(file)).find((name) => /^manifesto-\d{4}-.*\.json$/.test(name))
   assert.equal(JSON.parse(readFileSync(join(dirname(file), archive), "utf8")).active, "D")
 })
@@ -106,7 +129,8 @@ test("a restart keeps the manifesto", async (t) => {
   const { base, file, close } = await startServer(t)
   const { body } = await post(base, "/api/commit", { station: "B", tail: "teach doubt" })
   close()
-  assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), body)
+  const { wordLimit, ...saved } = body
+  assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), saved)
   const restarted = await startServer(t, file)
   assert.deepEqual(await events(restarted.base, 1), [{ type: "state", data: body }])
 })
@@ -115,7 +139,7 @@ test("a failed save changes nothing", async (t) => {
   const { base, file } = await startServer(t)
   mkdirSync(`${file}.tmp`)
   assert.equal((await post(base, "/api/commit", { station: "B", tail: "teach doubt" })).status, 500)
-  assert.deepEqual(await events(base, 1), [{ type: "state", data: { active: "B", turns: [opening] } }])
+  assert.deepEqual(await events(base, 1), [{ type: "state", data: sent({ active: "B", turns: [opening] }) }])
   rmSync(`${file}.tmp`, { recursive: true })
   assert.equal((await post(base, "/api/commit", { station: "B", tail: "teach doubt" })).status, 200)
 })
@@ -133,14 +157,14 @@ test("a corrupt file is moved aside, never overwritten", async (t) => {
   writeFileSync(file, "{ half a manifesto")
   t.mock.method(console, "warn", () => {})
   const { base } = await startServer(t, file)
-  assert.deepEqual(await events(base, 1), [{ type: "state", data: { active: "B", turns: [opening] } }])
+  assert.deepEqual(await events(base, 1), [{ type: "state", data: sent({ active: "B", turns: [opening] }) }])
   const aside = readdirSync(dir).find((name) => name.startsWith("manifesto-corrupt-"))
   assert.equal(readFileSync(join(dir, aside), "utf8"), "{ half a manifesto")
 })
 
-async function startServer(t, file = join(mkdtempSync(join(tmpdir(), "turns-")), "manifesto.json")) {
+async function startServer(t, file = join(mkdtempSync(join(tmpdir(), "turns-")), "manifesto.json"), wordLimit) {
   t.mock.method(console, "error", () => {})
-  const handle = createTurnServer(file)
+  const handle = createTurnServer(file, wordLimit)
   const server = createServer((req, res) => handle(req, res, () => res.writeHead(404).end()))
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
   const close = () => {
