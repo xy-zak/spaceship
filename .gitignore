@@ -31,3 +31,6 @@ token-usage.log
 
 # written by scripts/capture
 .capture
+
+# the manifesto and its archives, written by server/turns.mjs
+data/
