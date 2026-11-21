@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Spaceship · view</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕹️</text></svg>" />
+    <link rel="stylesheet" href="/src/theme.css" />
+    <style>
+      body {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        min-height: 100vh;
+        margin: 0;
+      }
+      header,
+      footer {
+        position: sticky;
+        padding: var(--gap) var(--padding);
+        background: var(--bg);
+        color: var(--ink-3);
+      }
+      header {
+        top: 0;
+      }
+      footer {
+        bottom: 0;
+      }
+      main {
+        width: min(64ch, 100% - 2 * var(--padding));
+        margin-inline: auto;
+        padding-block: var(--padding);
+        line-height: var(--line);
+      }
+      /* One shade per author, so the eye can follow who wrote what; orange is the active station's live text. */
+      [data-station="opening"] {
+        color: var(--ink-3);
+        font-style: italic;
+      }
+      [data-station="C"] {
+        color: var(--ink-2);
+      }
+      [data-station="D"] {
+        color: var(--ink-3);
+      }
+      [data-live] {
+        color: var(--hot);
+      }
+    </style>
+  </head>
+  <body>
+    <header><output id="banner">connecting…</output></header>
+    <main id="manifesto"></main>
+    <footer><output id="steering"></output></footer>
+    <script type="module" src="/src/view/main.ts"></script>
+  </body>
+</html>

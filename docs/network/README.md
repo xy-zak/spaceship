@@ -49,9 +49,11 @@ export function floorOf(turns: Turn[]): Turn[] // turns.length === 1 ? turns : t
 export function joinTurns(turns: Turn[]): string // non-empty texts joined by one space
 export function splitTail(turns: Turn[], tail: string): { kept: string; fresh: string }
 // kept = the tail's leading words that equal the last turn's leading words ("" when only the opening exists); fresh = the rest
+export function appendTail(turns: Turn[], station: Station, tail: string): Turn[]
+// the last turn becomes `kept`, then `fresh` is appended as station's turn
 ```
 
-The server's commit uses `splitTail`. The view's author shading uses it as well, so the two can never disagree.
+The server's commit uses `appendTail`. The view shades live text with it as well, so the two can never disagree.
 
 ### Data
 

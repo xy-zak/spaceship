@@ -1,5 +1,4 @@
 import { storedApiKey, streamCompletion } from "../llm/cerebras.ts"
-import { STORY_OPENINGS } from "../story/openings.ts"
 import { STORY_MAX_WORDS, STORY_REQUEST } from "../story/prompt.ts"
 import { strengthLevelOf, valueOf, type Control } from "./dimension.ts"
 import type { Steering, TextSource } from "./text-stream.ts"
@@ -31,17 +30,7 @@ const MAX_ECHO_WORDS = 6
 
 const STEERED_REQUEST = { ...STORY_REQUEST, system: STEERED_SYSTEM_PROMPT }
 
-export const liveSource: TextSource = { expand: expandToStoryStart, complete: completeStory }
-
-/** Picks a random story opening that begins with the same words as `text`. */
-function expandToStoryStart(text: string) {
-  const words = text.match(/\S+/g) ?? []
-  const candidates = STORY_OPENINGS.filter((start) => {
-    const startWords = start.split(/\s+/)
-    return startWords.length >= words.length && words.every((word, i) => word === startWords[i])
-  })
-  return candidates[Math.floor(Math.random() * candidates.length)] ?? text
-}
+export const liveSource: TextSource = { complete: completeStory }
 
 async function* completeStory(prefix: string, steering: Steering, signal: AbortSignal) {
   const apiKey = storedApiKey()
@@ -93,7 +82,7 @@ function steeredUserMessage(prefix: string, { leads, controls }: Steering) {
     .join("\n\n")
 }
 
-function controlLine({ dimension, position, strength }: Control) {
+export function controlLine({ dimension, position, strength }: Control) {
   const options = dimension.kind === "choice" ? ` (options: ${dimension.options.join(", ")})` : ""
   return `${dimension.name}: ${valueOf({ dimension, position })}${options} (${strengthLevelOf(strength)})`
 }

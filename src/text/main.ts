@@ -1,7 +1,9 @@
 import { layoutNextLine, prepareWithSegments, type PreparedTextWithSegments } from "@chenglou/pretext"
-import "@fontsource-variable/jetbrains-mono/wght.css"
 import { $ } from "../dom.ts"
+import { commitTurn, createLivePoster, stationOf, swapTo, turnEvents, visibleWindow } from "../net/turns.ts"
 import { centeredAt, type Point } from "../point.ts"
+import { LENSES, OPENING, type Station } from "../stations.ts"
+import { wordsOf } from "../turn-rules.ts"
 import { createAttentionKnobs } from "./attention-knobs.ts"
 import { caretAt, isAhead, pointAt, type Caret, type TextMetrics } from "./caret.ts"
 import { simulatedSource } from "./completion.ts"
@@ -14,7 +16,7 @@ import { layoutLines } from "./layout.ts"
 import { createLeftRail } from "./left-rail.ts"
 import { circleOf } from "./links.ts"
 import { liveAttention } from "./live-attention.ts"
-import { liveSource } from "./live-completion.ts"
+import { controlLine, liveSource } from "./live-completion.ts"
 import { liveDimension } from "./live-dimension.ts"
 import { liveInfluence } from "./live-influence.ts"
 import { bindModeToggle } from "./live-mode.ts"
@@ -32,7 +34,7 @@ import { sounds } from "./sound/sounds.ts"
 import { showStatus } from "./status-line.ts"
 import { storyLayoutOf, type StoryLayout } from "./story-layout.ts"
 import { domPointAt, textOffsetOf } from "./text-offsets.ts"
-import { createTextStream, type Steering } from "./text-stream.ts"
+import { createTextStream, type Seed, type Steering } from "./text-stream.ts"
 import { countWords, firstWords } from "./words.ts"
 
 const DWELL_MS = 100
@@ -58,6 +60,7 @@ const soundToggle = $<HTMLButtonElement>("#sound-toggle")
 const modeToggle = $<HTMLButtonElement>("#mode-toggle")
 const extraLink = $<HTMLAnchorElement>("#extra-link")
 const railElement = $("#rail")
+const turnElement = $<HTMLOutputElement>("#turn")
 const style = getComputedStyle(element)
 await document.fonts.load(style.font)
 /** Measures where the first hidden word on the caret's line starts, in the text's font. */
@@ -65,6 +68,8 @@ const measure = document.createElement("canvas").getContext("2d")!
 measure.font = style.font
 
 const isLive = new URLSearchParams(location.search).get("live") === "true"
+/** Without a station the editor runs alone from the opening, for development. */
+const station = stationOf(location.search)
 const stream = createTextStream(isLive ? liveSource : simulatedSource, render)
 const rail = createLeftRail(railElement)
 const connections = createConnections({ source: isLive ? liveInfluence : simulatedInfluence, onChange: refreshRail })
@@ -118,6 +123,10 @@ let holdSound: Sound | undefined
 let didHold = false
 /** The previous drag point, for how fast the knob moves. */
 let lastDrag: { point: Point; at: number } | undefined
+/** The turns the editor was seeded from, to tell a new state from the same one sent again after a reconnect. */
+let seededTurns: string | undefined
+let postLive: (tail: string, steering: string[]) => void = () => {}
+let isCommitting = false
 
 bindModeToggle(modeToggle, $<HTMLDialogElement>("#live-keys"), isLive)
 startSound()
@@ -174,14 +183,60 @@ createPointer({
   pull: pullToward,
 })
 
-addEventListener("resize", () => moveTo(pointAt(caret, metricsOf())))
-moveTo(pointAt(caret, metricsOf()))
+// Enter stands in for the panel's OK
+addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.repeat && station && !(event.target as Element).closest("dialog, #tray")) passTurn(station)
+})
+if (station) followTurns(station)
+else start({ head: "", text: OPENING, floorWords: countWords(OPENING) })
 
-/** The knob stops at the column's right edge, as no line reaches past it. */
+/** The first state seeds the editor. Later, the page swaps once the turn moves on, and reloads if the turns changed under it, as after a reset. */
+async function followTurns(station: Station) {
+  const label = `${station} · ${LENSES[station]}`
+  turnElement.hidden = false
+  for await (const event of turnEvents()) {
+    if (event.type === "offline") turnElement.value = `${label} · reconnecting…`
+    if (event.type !== "state") continue
+    const { active, turns } = event.state
+    if (active !== station) return swapTo("view")
+    if (seededTurns === undefined) {
+      seededTurns = JSON.stringify(turns)
+      start(visibleWindow(turns))
+      postLive = createLivePoster(station)
+      report()
+    } else if (JSON.stringify(turns) !== seededTurns) location.reload()
+    if (!isCommitting) turnElement.value = label
+  }
+}
+
+/** The knob starts after the last seeded word, so the turn opens with the whole previous turn shown. */
+function start(seed: Seed) {
+  stream.seed(seed)
+  addEventListener("resize", () => moveTo(pointAt(caret, metricsOf())))
+  moveTo(pointAt(caretAfterWords(countWords(seed.text)) ?? caret, metricsOf()))
+}
+
+async function passTurn(station: Station) {
+  if (isCommitting || seededTurns === undefined) return
+  isCommitting = true
+  turnElement.value = "passing…"
+  // shortcut: model requests keep running until the page swaps; harmless while they go to Cerebras, abort them first once they share pa.local through /ollama (README #4)
+  const result = await commitTurn(station, tail())
+  if (result !== "failed") return swapTo("view")
+  isCommitting = false
+  turnElement.value = "not sent, press Enter again"
+}
+
+/** The knob stops at the column's right edge, as no line reaches past it, and never shows fewer words than the floor. */
 function moveTo({ x, y }: Point) {
   const { left, width } = element.getBoundingClientRect()
-  const point = { x: Math.min(x, left + scrollX + width), y }
+  let point = { x: Math.min(x, left + scrollX + width), y }
   caret = caretAt(point, metricsOf())
+  const floor = caretAfterWords(stream.floorWords)
+  if (floor && isAhead(floor, caret)) {
+    caret = floor
+    point = pointAt(floor, metricsOf())
+  }
   handle.style.translate = centeredAt(point, handle.offsetWidth)
   render()
   restartRest()
@@ -260,6 +315,19 @@ function report() {
     steering: futureKnobs.controls().length,
     pinned: futureKnobs.pinnedCount(),
   })
+  // clipped to the server's limits, which would refuse the whole post
+  postLive(
+    tail(),
+    futureKnobs
+      .controls()
+      .slice(0, 16)
+      .map((control) => controlLine(control).slice(0, 200)),
+  )
+}
+
+/** The shown words after the floor, single-spaced: the text this turn hands the server. */
+function tail() {
+  return wordsOf(shownText).slice(stream.floorWords).join(" ")
 }
 
 function restartDwell() {

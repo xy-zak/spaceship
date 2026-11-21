@@ -16,6 +16,13 @@ export function joinTurns(turns: Turn[]): string {
     .join(" ")
 }
 
+/** The turns after `station` commits `tail`, or what the views show while it is still live text. */
+export function appendTail(turns: Turn[], station: Station, tail: string): Turn[] {
+  const { kept, fresh } = splitTail(turns, tail)
+  const settled = turns.length === 1 ? turns : [...turns.slice(0, -1), { ...turns[turns.length - 1], text: kept }]
+  return [...settled, { station, text: fresh }]
+}
+
 /** `kept` is the tail's leading words that match the last turn's leading words (none when only the opening exists); `fresh` is the rest. */
 export function splitTail(turns: Turn[], tail: string): { kept: string; fresh: string } {
   const tailWords = wordsOf(tail)

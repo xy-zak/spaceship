@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs"
 import { dirname } from "node:path"
 import { OPENING, STATIONS, nextStation } from "../src/stations.ts"
-import { splitTail } from "../src/turn-rules.ts"
+import { appendTail } from "../src/turn-rules.ts"
 
 const MAX_BODY_CHARS = 256 * 1024
 const MAX_TAIL_CHARS = 50_000
@@ -152,11 +152,7 @@ const isLocal = (req) => LOCAL_ADDRESSES.includes(req.socket.remoteAddress)
 const initialState = () => ({ active: STATIONS[0], turns: [{ station: "opening", text: OPENING }] })
 
 /** Pure: credits the tail's leading words that match the last turn to that turn, appends the rest as the new turn, and passes the turn on. */
-export function applyCommit({ turns }, station, tail) {
-  const { kept, fresh } = splitTail(turns, tail)
-  const settled = turns.length === 1 ? turns : [...turns.slice(0, -1), { ...turns.at(-1), text: kept }]
-  return { active: nextStation(station), turns: [...settled, { station, text: fresh }] }
-}
+export const applyCommit = ({ turns }, station, tail) => ({ active: nextStation(station), turns: appendTail(turns, station, tail) })
 
 function parseState(json) {
   try {

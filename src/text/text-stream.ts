@@ -11,8 +11,6 @@ export type GenerationOutcome = "busy" | "aborted" | "done"
 export type Steering = { leads: Lead[]; controls: Control[] }
 
 export type TextSource = {
-  /** May rewrite the text before completion starts, e.g. to a full known opening. */
-  expand?(text: string): string
   /**
    * Streams text that continues `prefix`, led by `steering`.
    * Must stop (by throwing or returning) once `signal` aborts.
@@ -26,12 +24,16 @@ export type StreamActivity = { isGenerating: boolean; firstChunkMs?: number; wor
 /** Times of the latest generation; `words` counts those after the first chunk, so the rate measures streaming, not latency. */
 type Timing = { startedAt: number; firstChunkAt?: number; lastChunkAt?: number; words: number }
 
+/** What the stream starts from: `text` is shown, its first `floorWords` words are locked, and `head` is earlier text only the model sees. */
+export type Seed = { head: string; text: string; floorWords: number }
+
 /** `onChange` is called whenever the text changes and once a generation finishes. */
-export function createTextStream({ expand, complete }: TextSource, onChange: () => void) {
+export function createTextStream({ complete }: TextSource, onChange: () => void) {
   let text = ""
+  let head = ""
   let active: AbortController | undefined
   let id = 0
-  let openingWords = 0
+  let floorWords = 0
   let timing: Timing | undefined
   /** Waiting for the current generation to start streaming. */
   const waiters = new Set<() => void>()
@@ -40,6 +42,10 @@ export function createTextStream({ expand, complete }: TextSource, onChange: () 
     get text() {
       return text
     },
+    get floorWords() {
+      return floorWords
+    },
+    seed,
     generate,
     truncate,
     regenerate,
@@ -80,19 +86,13 @@ export function createTextStream({ expand, complete }: TextSource, onChange: () 
     const controller = (active = new AbortController())
     const { signal } = controller
     const generationId = ++id
-    const expanded = expand?.(text) ?? text
-    if (expanded !== text) {
-      text = expanded
-      openingWords = countWords(text)
-      onChange()
-    }
     const prefix = text
     const started: Timing = { startedAt: performance.now(), words: 0 }
     timing = started
     console.log(`generation ${generationId} start by ${trigger} after ${countWords(prefix)} words`)
 
     try {
-      for await (const chunk of complete(prefix, steering, signal)) {
+      for await (const chunk of complete(head ? `${head} ${prefix}` : prefix, steering, signal)) {
         if (signal.aborted) return "aborted"
         const now = performance.now()
         if (started.firstChunkAt === undefined) {
@@ -118,25 +118,29 @@ export function createTextStream({ expand, complete }: TextSource, onChange: () 
     }
   }
 
-  /** Cutting inside the expanded opening is a no-op unless `count` is zero. */
-  function truncate(count: number) {
-    if (count > 0 && count <= openingWords) return
-    cutAfter(count)
+  function seed(next: Seed) {
+    cancel()
+    head = next.head
+    text = next.text
+    floorWords = next.floorWords
+    onChange()
   }
 
-  /** Keeps at least the expanded opening, then generates again. */
+  /** Never cuts into the floor. */
+  function truncate(count: number) {
+    cancel()
+    text = firstWords(text, Math.max(count, floorWords))
+  }
+
   function regenerate(count: number, trigger: GenerationTrigger, steering: Steering) {
-    cutAfter(Math.max(count, openingWords))
+    truncate(count)
     return generate(trigger, steering)
   }
 
-  function cutAfter(count: number) {
-    if (active) {
-      active.abort()
-      active = undefined
-      console.log(`generation ${id} cancel`)
-    }
-    text = firstWords(text, count)
-    if (count === 0) openingWords = 0
+  function cancel() {
+    if (!active) return
+    active.abort()
+    active = undefined
+    console.log(`generation ${id} cancel`)
   }
 }

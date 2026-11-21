@@ -25,6 +25,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(import.meta.dirname, "index.html"),
+        view: resolve(import.meta.dirname, "view.html"),
         ...Object.fromEntries(
           readdirSync(resolve(import.meta.dirname, "extra"))
             .filter((file) => file.endsWith(".html"))

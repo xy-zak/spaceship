@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <title>Spaceship</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕹️</text></svg>" />
+    <link rel="stylesheet" href="/src/theme.css" />
     <style>
       @property --fill {
         syntax: "<number>";
@@ -17,35 +18,21 @@
         initial-value: 0;
       }
       :root {
-        color-scheme: dark;
-        /* White ink in five steps on black; orange only for what is changing right now, by the hand or by the model. */
-        --bg: #000;
-        --ink: #fff;
-        --ink-2: rgb(255 255 255 / 0.64);
-        --ink-3: rgb(255 255 255 / 0.4);
-        --ink-4: rgb(255 255 255 / 0.22);
-        --ink-5: rgb(255 255 255 / 0.1);
-        --hot: #ff5a1f;
-        --hot-wash: rgb(255 90 31 / 0.38);
         /* Each box covering a word adds one layer, so overlaps read darker. */
         --attention: rgb(255 255 255 / 0.14);
         --hair: 1px;
         --stroke: 1.5px;
         --selected-stroke: 3px;
         --dash: 3 3;
-        --text-size: 11px;
-        --line: 18px;
         /* Read by the HUD to measure its labels. */
         --hud-size: 10px;
         --hud-line: 14px;
         --numeral-size: 9px;
         --tray-height: 18px;
-        --padding: 32px;
         /* Room each side of the column for pinned future knobs and their labels. */
         --margin: 24ch;
         --knob: 14px;
         --knob-future: 12px;
-        --gap: 8px;
         --fast: 120ms;
         --settle: 300ms;
         /* How long an orange trace takes to fade. */
@@ -55,12 +42,6 @@
         /* The ruler beside the column: one row per line, each this tall like the text. */
         --rail-width: 144px;
         scrollbar-gutter: stable;
-        background: var(--bg);
-        color: var(--ink);
-        font:
-          var(--text-size) "JetBrains Mono Variable",
-          monospace;
-        -webkit-font-smoothing: antialiased;
       }
       [data-dimmed] {
         opacity: var(--dimmed);
@@ -602,6 +583,10 @@
       #status {
         display: contents;
       }
+      #turn {
+        padding-inline: var(--gap);
+        color: var(--ink);
+      }
       #mode-toggle,
       #sound-toggle,
       #extra-link {
@@ -869,6 +854,7 @@
     </template>
     <div id="cursor" aria-hidden="true"></div>
     <footer id="tray">
+      <output id="turn" aria-live="polite" hidden>connecting…</output>
       <button id="mode-toggle" type="button" aria-pressed="false" aria-label="flight mode">mode<b>sim</b></button>
       <output id="status" aria-live="off"></output>
       <button id="sound-toggle" type="button" aria-pressed="true" aria-label="sound">♪<b>on</b></button>
