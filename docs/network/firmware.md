@@ -1,14 +1,14 @@
 # Firmware plan (ESP32 panel)
 
-> Written by the microcontroller planning agent. Where this conflicts with [README.md](README.md), the README wins. The review needed no changes to this plan; the browser adopted the reset handshake, the marker gate and the 4096-byte buffer this plan asked for.
+> Written by the microcontroller planning agent. Where this conflicts with [README.md](README.md), the README wins. The review needed no changes to this plan; the browser adopted the reset handshake, the marker gate and the 4096-byte buffer this plan asked for. Since then (README decision 1), each steering channel's strength is a rotary encoder sending `strength ch step`, and only the angle sliders are capped; this plan is updated to match.
 
 ## 1. Summary
 
 - **Toolchain:** one Arduino sketch in `firmware/panel/`, built and flashed with arduino-cli 1.6.0. A `sketch.yaml` profile pins Arduino-ESP32 3.3.13. No third-party libraries.
-- **Endless:** an interrupt routine decodes the encoders with a 16-entry quadrature table. **Trigger and Hold:** a 10 ms debounce.
-- **Capped:** each reading is the mean of 16 ADC samples, then smoothed, then mapped through calibrated end dead zones (the end snap). A value is sent only after a move of ≥20, except that exactly 0 and 1000 are always sent.
+- **Endless:** an interrupt routine decodes the encoders, including one strength encoder per steering channel, with a 16-entry quadrature table. **Trigger and Hold:** a 10 ms debounce.
+- **Capped (the angle sliders):** each reading is the mean of 16 ADC samples, then smoothed, then mapped through calibrated end dead zones (the end snap). A value is sent only after a move of ≥20, except that exactly 0 and 1000 are always sent.
 - **Output timing:** endless and capped lines go out on a 20 ms report tick, at most 50 lines/s per control. `select`, `box`, `reroll` and `ok` are sent at once. The only other output is `#` comment lines.
-- **Identical firmware on all three stations.** Pins and calibration live in one table in `config.h`; adding a steering channel means adding two rows.
+- **Identical firmware on all three stations.** Pins and calibration live in one table in `config.h`; adding a steering channel means adding two rows, an encoder and a slider.
 - **Corrections to the agreed plan:**
   - WROOM-32 boards wire out only 6 ADC1 pins, not 8.
   - The board doesn't always reset when the port opens, so the browser resets it itself.
@@ -40,7 +40,7 @@ const uint32_t REPORT_MS = 20, DEBOUNCE_MS = 10, HOLD_MS = 1000;
 const int MIN_MOVE = 20, ADC_SAMPLES = 16;
 const float SMOOTHING = 0.5;  // the 16-sample mean already gives about ±1 unit; this only damps rare spikes
 
-struct Endless { const char* name; uint8_t pinA, pinB; int countsPerStep; volatile int32_t count; volatile uint8_t prev; int32_t taken; };
+struct Endless { const char* name; uint8_t channel, pinA, pinB; int countsPerStep; volatile int32_t count; volatile uint8_t prev; int32_t taken; };  // channel 0: prints "name step", else "name channel step"
 struct Button  { const char* name; uint8_t pin; bool raw, pressed, fired; uint32_t changedAt, pressedAt; };
 struct Capped  { const char* name; uint8_t channel, pin; int rawAt0, rawAt1000; float filtered; int sent, rawMin, rawMax; };
 
@@ -68,12 +68,13 @@ return position != sent && (abs(position - sent) >= MIN_MOVE || position == 0 ||
 
 ```cpp
 #define CALIBRATE 0  // 1: also print "# cal value 1 raw=… min=… max=…" every 500 ms
-Endless endless[] = {{"scrub",16,17,4}, {"across",18,19,4}, {"down",21,22,4}};  // turns the wrong way: swap A and B
+Endless endless[] = {    // name, channel (0: none), pin A, pin B, counts per step; turns the wrong way: swap A and B
+  {"scrub",0,16,17,4}, {"across",0,18,19,4}, {"down",0,21,22,4},
+  {"strength",1,32,33,4}, {"strength",2,25,26,4}};
 Button triggers[] = {{"select",23}, {"box",4}, {"reroll",13}};
 Button ok = {"ok",27};  const uint8_t OK_LED = 14;
 Capped capped[] = {     // name, channel, ADC pin, raw at the 0 end, raw at the 1000 end (reversed control: swap the two)
-  {"value",1,36,100,3995}, {"strength",1,39,100,3995},
-  {"value",2,34,100,3995}, {"strength",2,35,100,3995}};
+  {"value",1,36,100,3995}, {"value",2,39,100,3995}};
 ```
 
 Each control stores "raw at the 0 end" and "raw at the 1000 end", so reversing a control means swapping two numbers. No invert flag is needed.
@@ -179,10 +180,9 @@ All matched by `client.md` after the review (README #7–#10):
 | box / reroll                    | 4 / 13                                                            | internal pull-up                                |
 | ok (hold)                       | 27                                                                | internal pull-up                                |
 | ok LED                          | 14                                                                | flickers briefly at boot, harmless on an output |
-| ch1 value / strength            | 36 / 39                                                           | ADC1; fine for analog                           |
-| ch2 value / strength            | 34 / 35                                                           | ADC1; input-only, pots need no pull-ups         |
-| spare ch3                       | 32 / 33                                                           | ADC1                                            |
-| spare ch4                       | 25 / 26                                                           | ADC2; works only because Wi-Fi is off           |
+| ch1 value slider / strength A/B | 36 / 32, 33                                                       | slider on ADC1; the encoder like the others     |
+| ch2 value slider / strength A/B | 39 / 25, 26                                                       | slider on ADC1; the encoder like the others     |
+| spare                           | 34, 35                                                            | ADC1; input-only, no internal pull-ups          |
 | never use                       | 0, 2, 5, 12, 15 (strapping); 1, 3 (the serial link); 6–11 (flash) | GPIO37/38 are not wired out on WROOM-32         |
 
 **Wiring per action type**
@@ -197,15 +197,15 @@ All matched by `client.md` after the review (README #7–#10):
 
 | Type    | Qty                    | Part                                                                    | Extras                                        |
 | ------- | ---------------------- | ----------------------------------------------------------------------- | --------------------------------------------- |
-| Endless | 3                      | EC11 encoder, 20 detents / 20 pulses; the across one with a push switch | 2× 10 kΩ and 2× 10 nF each, knob              |
+| Endless | 3 + 1 per channel      | EC11 encoder, 20 detents / 20 pulses; the across one with a push switch | 2× 10 kΩ and 2× 10 nF each, knob              |
 | Trigger | 2 (+ the across press) | 24–30 mm momentary arcade button                                        | 100 nF (optional)                             |
 | Hold    | 1                      | 30 mm momentary arcade button                                           | 5 mm LED, 330 Ω                               |
-| Capped  | 4                      | 60 mm linear B10K slide pot, dust-proof                                 | 100 nF and 1 MΩ each                          |
+| Capped  | 1 per channel          | 60 mm linear B10K slide pot, dust-proof, for the angle                  | 100 nF and 1 MΩ each                          |
 | Board   | 1                      | WROOM-32 DevKit with CP2102 or CH340                                    | USB data cable ≤ 1 m, screw-terminal breakout |
 
 **Encoder scaling:** set `countsPerStep` to 4 for 20/20 EC11 encoders, and 2 for encoders with half a cycle per detent. For detentless jog wheels, pick by feel.
 
-**Adding steering channels:** add two rows to `capped`, ch3 on 32/33 and ch4 on 25/26; no code changes. More than 4 channels would need an analog multiplexer such as a CD74HC4067, which isn't planned.
+**Adding steering channels:** add a `strength` row to `endless` and a `value` row to `capped`; no code changes. Each channel takes three pins, so the reference panel's two channels leave only 34 and 35 free: one pin short of a third channel. A third would need an I/O expander, which isn't planned.
 
 ## 9. Edge cases and failure handling
 
@@ -220,7 +220,7 @@ All matched by `client.md` after the review (README #7–#10):
 ## 10. Test and verification plan
 
 1. **Build:** `arduino-cli compile --warnings all` passes with no warnings.
-2. **Boot output:** run `arduino-cli monitor --config baudrate=115200` and press EN. Expect the boot messages, an empty line, the marker, then 4 dump lines that match the sliders.
+2. **Boot output:** run `arduino-cli monitor --config baudrate=115200` and press EN. Expect the boot messages, an empty line, the marker, then 2 dump lines that match the sliders.
 3. **Checker:** `stty -F /dev/ttyUSB0 115200 raw -echo; node firmware/check-lines.mjs < /dev/ttyUSB0`. It echoes each line with the time since the last one, and prints `!` before any line that breaks the grammar, the ≥20/end rule or the 20 ms spacing.
 4. **Endless:**
    - one detent sends exactly ±1;
@@ -235,7 +235,7 @@ All matched by `client.md` after the review (README #7–#10):
    - releasing at 0.5 s sends nothing and turns the LED off;
    - 1 s sends one `ok`, and the LED stays full until release;
    - 10 s still sends one `ok`.
-7. **Capped:**
+7. **Capped (the sliders):**
    - creeping into either end, the last line is exactly 0 or 1000;
    - slow moves send steps of ≥20;
    - a fast slide sends at most 50 lines/s;

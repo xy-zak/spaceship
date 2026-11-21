@@ -1264,7 +1264,7 @@
           <svg
             viewBox="0 0 720 440"
             role="img"
-            aria-label="A steering channel on the existing fan, made of two capped controls. The direction control sets the knob's angle around the main knob: while choosing it points at a menu item, after choosing it sets the value. The strength control sets the distance: past the gate it chooses, further out is stronger, and back to zero releases."
+            aria-label="A steering channel on the existing fan, made of a slider and a rotary encoder. The slider sets the knob's angle around the main knob: while choosing it points at a menu item, after choosing it sets the value. The encoder sets the distance, starting at 10% on the channel's first touch: past the gate it chooses, further out is stronger, and back to zero releases."
           >
             <path class="wash" d="M181.7 241.6 L275.6 261.6 A200 200 0 0 1 241.8 337.6 L164.1 281.1 A104 104 0 0 0 181.7 241.6 Z" />
             <line class="faint" x1="98" y1="188.8" x2="180" y2="46.8" />
@@ -1301,10 +1301,9 @@
             <text x="444" y="184">choosing: points at a menu item</text>
             <text x="444" y="206">chosen: sets the value</text>
 
-            <line x1="446" y1="270" x2="514" y2="270" style="stroke: var(--ink-3); stroke-width: 3" />
-            <line x1="444" y1="261" x2="444" y2="279" style="stroke: var(--ink); stroke-width: 1.5" />
-            <line x1="516" y1="261" x2="516" y2="279" style="stroke: var(--ink); stroke-width: 1.5" />
-            <rect x="452" y="261" width="8" height="18" style="fill: var(--ink)" />
+            <text class="t-lbl" x="444" y="240">endless · starts at 10% each turn</text>
+            <circle cx="470" cy="270" r="13" style="fill: none; stroke: var(--ink); stroke-width: 1.5" />
+            <line x1="470" y1="270" x2="477" y2="259" style="stroke: var(--ink); stroke-width: 1.5" />
             <text class="t-strong" x="536" y="274">strength → distance</text>
             <text x="444" y="306">past the gate: chooses</text>
             <text x="444" y="328">further out: stronger</text>
@@ -1312,9 +1311,10 @@
           </svg>
         </div>
         <figcaption>
-          A steering channel is two capped controls driving the existing fan, so the menu, the choosing and the knob visuals stay as they are. The panel needs
-          no printed labels: the screen names the dimension each channel is steering. Once a knob pins beside the sentence that delivered it, moving that
-          channel opens a fresh knob.
+          A steering channel is a slider for the angle and a rotary encoder for the strength, driving the existing fan, so the menu, the choosing and the knob
+          visuals stay as they are. The encoder has no position, so every turn starts at strength 0; the channel's first touch shows its knob at 10%, inside the
+          gate, so the link shows the angle before anything is chosen. The panel needs no printed labels: the screen names the dimension each channel is
+          steering. Once a knob pins beside the sentence that delivered it, touching that channel opens a fresh knob.
         </figcaption>
       </figure>
     </section>
@@ -1379,8 +1379,8 @@
         drift out of step with it. Use a trigger instead.
       </p>
       <p>
-        Per station that makes 3 endless, 3 triggers, 1 hold, and 2 capped controls per steering channel. The select trigger can be the press of the
-        along-the-line dial.
+        Per station that makes 3 endless, 3 triggers, 1 hold, and per steering channel a capped slider and an endless encoder. The select trigger can be the
+        press of the along-the-line dial.
       </p>
       <p>Every function the editor has, its action type, and the line the ESP32 sends:</p>
       <div class="table-wrap">
@@ -1438,9 +1438,9 @@
             </tr>
             <tr>
               <td>Steering channel: strength</td>
-              <td><span class="type">Capped</span></td>
-              <td><code>strength 1 400</code></td>
-              <td>knob distance; past the gate chooses, 0 releases</td>
+              <td><span class="type">Endless</span></td>
+              <td><code>strength 1 2</code></td>
+              <td>knob distance, from 10% on the first touch; past the gate chooses, 0 releases</td>
             </tr>
             <tr>
               <td>End the turn</td>
@@ -1535,7 +1535,7 @@ select            <span class="c"># trigger · box the phrase at the cursor, or 
 box               <span class="c"># trigger · model's boxes on/off</span>
 reroll            <span class="c"># trigger</span>
 value 1 734       <span class="c"># capped · channel 1 direction, 0–1000</span>
-strength 1 400    <span class="c"># capped · channel 1 strength, 0–1000</span>
+strength 1 2      <span class="c"># endless · channel 1 strength, signed steps</span>
 ok                <span class="c"># hold · once the 1 s hold completes</span></pre>
         <div style="display: grid; gap: 12px">
           <h3>Firmware rules</h3>
@@ -1546,8 +1546,11 @@ ok                <span class="c"># hold · once the 1 s hold completes</span></
               board right after opening the port and ignores lines until the marker, so this syncs the panel on every page load. Lines starting with
               <code>#</code> are comments.
             </li>
-            <li>Steering channels are numbered from 1. Add a channel by adding a pair of capped controls; the browser opens it when it first hears from it.</li>
-            <li>WROOM-32 boards wire out 6 ADC1 pins: room for 3 steering channels. A 4th fits on ADC2 pins 25 and 26, which work because Wi-Fi is off.</li>
+            <li>
+              Steering channels are numbered from 1. Add a channel by adding a slider and an encoder; the browser opens its knob when the channel is first
+              touched.
+            </li>
+            <li>Each channel takes three pins, one ADC1 pin for the slider and two for the encoder, so the reference board has room for 2 channels.</li>
           </ul>
           <p>
             The browser reads the port as a cancellable stream of lines in <code>src/input/serial.ts</code>. A keyboard version of the same events stands in
@@ -1785,8 +1788,8 @@ chromium --kiosk --noerrdialogs --autoplay-policy=no-user-gesture-required \
             <tr>
               <td>Mouse</td>
               <td>
-                <code>pointer</code>, <code>drag</code>, <code>hold</code>, the custom pointer CSS and hover styles, and the tray's sound toggle and extra link,
-                which nothing can press. The page sets <code>cursor: none</code> and turns off text selection, so a stray mouse does nothing.
+                Cancelled: mouse and keyboard stay as the alternative input, beside the panel (README decision 3). Only <code>hold</code> went, replaced by
+                Shift and press.
               </td>
             </tr>
           </tbody>
@@ -2078,7 +2081,7 @@ POST /ollama/v1/chat/completions → token stream</pre>
     <pre>
 scrub -3      across 1      down -1
 select        box           reroll       ok
-value 1 734   strength 1 400
+value 1 734   strength 1 2
 # spaceship-panel 1</pre>
     <dl class="facts">
       <dt>settings</dt>
@@ -2103,14 +2106,14 @@ value 1 734   strength 1 400
       <dd>ESP32-WROOM-32 DevKit with CP2102 or CH340, powered by the USB data cable</dd>
       <dt>firmware</dt>
       <dd><code>firmware/panel/</code>, arduino-cli 1.6.0, Arduino-ESP32 3.3.13, no libraries</dd>
-      <dt>endless ×3</dt>
-      <dd>scrub 16/17 · across 18/19 · down 21/22</dd>
+      <dt>endless ×5</dt>
+      <dd>scrub 16/17 · across 18/19 · down 21/22 · strength 1 on 32/33 · strength 2 on 25/26</dd>
       <dt>trigger ×3</dt>
       <dd>select 23 (the across press) · box 4 · reroll 13</dd>
       <dt>hold ×1</dt>
       <dd>ok 27, with an LED on 14 that fills over 1 s</dd>
-      <dt>capped ×4</dt>
-      <dd>channel 1 on 36/39 · channel 2 on 34/35 · spares 32/33 and 25/26</dd>
+      <dt>capped ×2</dt>
+      <dd>value 1 on 36 · value 2 on 39 · spares 34 and 35</dd>
       <dt>at boot</dt>
       <dd>ROM noise, an empty line, the marker, then every capped position</dd>
       <dt>rules</dt>

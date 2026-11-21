@@ -8,7 +8,8 @@
 > - Endless steps are summed per frame.
 > - At most 4 model requests at once, all aborted before a commit.
 > - The hidden head is capped at 6,000 words.
-> - If decision 1 is accepted, channels arm at zero.
+> - Each steering channel is a slider for the angle and a rotary encoder for the strength. A knob opens at 10% on its channel's first touch, and each encoder step adds 4% (README decision 1).
+> - Mouse and keyboard input stays beside the panel, so the mouse deletions in sections 2 and 3 are cancelled (README decision 3).
 
 ## 1. Summary
 
@@ -121,7 +122,8 @@ export function linesOf(deltas: AsyncIterable<string>): AsyncIterable<string> //
 export type PanelEvent =
   | { type: "scrub" | "across" | "down"; steps: number }
   | { type: "select" | "box" | "reroll" | "ok" }
-  | { type: "value" | "strength"; channel: number; amount: number }
+  | { type: "value"; channel: number; position: number }
+  | { type: "strength"; channel: number; steps: number }
 export type PanelSource = (signal: AbortSignal) => AsyncIterable<PanelEvent>
 export function parseLine(line: string): PanelEvent | undefined
 export const serialEvents: PanelSource
@@ -178,8 +180,8 @@ export function phraseAround(words: Span[], text: string, index: number): Attent
 
 **`steer(channel, v, s)`**
 
-- `s <= 0.02` removes that channel's unpinned knob and returns. If decision 1 is accepted, it also arms the channel.
-- If the channel has no knob, or its knob has pinned, `open(channel)` creates one from the preloaded menu. Under decision 1, only if the channel is armed.
+- `s <= 0.02` removes that channel's unpinned knob and returns.
+- If the channel has no knob, or its knob has pinned, `open(channel)` creates one from the preloaded menu.
 - Each call then:
   - starts a steer: unpark, `isDragging = true`, stop tracking, start the sound bed;
   - computes `swing = (2v - 1) * SWING_RADIANS` and `distance = minDistanceOf(knob) + s * STRENGTH_RANGE_PX`;
@@ -189,15 +191,15 @@ export function phraseAround(words: Span[], text: string, index: number): Attent
 
 **Main dispatch** (ignored until the editor is seeded, and while committing)
 
-| Event                | What happens                                                                                                                                                                                                                           |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scrub`              | `target = clamp(shown + steps, floorWords, countWords(stream.text))`, then `caretAfterWords`, `moveTo`, `discardIfBehindRest`, `sounds.word(…)`, `keepInView(knob)`                                                                    |
-| `across` / `down`    | move the cursor, then `attention.focus(cursor.word())` and `keepInView(cursor.rect())`                                                                                                                                                 |
-| `select`             | `attention.toggleAt(cursor.word())`                                                                                                                                                                                                    |
-| `box`                | `toggleAttention()`                                                                                                                                                                                                                    |
-| `reroll`             | `regenerateFuture()`                                                                                                                                                                                                                   |
-| `value` / `strength` | update `channels: Map<number, { value; strength }>` (defaults 500 / 0), then `futureKnobs.steer(ch, value / 1000, strength / 1000)`                                                                                                    |
-| `ok`                 | if `isCommitting`, return. Otherwise set `isCommitting`, show "passing…", abort all model requests, then `commitTurn`. On `done` or `refused`, `swapTo("view")`. On `failed`, clear `isCommitting` and show "not sent, hold OK again". |
+| Event                | What happens                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scrub`              | `target = clamp(shown + steps, floorWords, countWords(stream.text))`, then `caretAfterWords`, `moveTo`, `discardIfBehindRest`, `sounds.word(…)`, `keepInView(knob)`                                                                                                                                                                                                                                                                                                                                 |
+| `across` / `down`    | move the cursor, then `attention.focus(cursor.word())` and `keepInView(cursor.rect())`                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `select`             | `attention.toggleAt(cursor.word())`                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `box`                | `toggleAttention()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `reroll`             | `regenerateFuture()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `value` / `strength` | `channels: Map<number, { value; strength }>`, with value unknown until first heard and strength 0 on every page load. A `value` line stores the position, and is a touch only if the position was already known (so the boot dump is not). A `strength` line is always a touch. A touch on a channel with no unpinned knob first restarts its strength at 0.1; a `strength` line then adds `0.04 × steps`, clamped to 0–1. After a touch, `futureKnobs.steer(ch, (value ?? 500) / 1000, strength)`. |
+| `ok`                 | if `isCommitting`, return. Otherwise set `isCommitting`, show "passing…", abort all model requests, then `commitTurn`. On `done` or `refused`, `swapTo("view")`. On `failed`, clear `isCommitting` and show "not sent, hold OK again".                                                                                                                                                                                                                                                              |
 
 **Editor startup**
 
@@ -242,7 +244,7 @@ export function phraseAround(words: Span[], text: string, index: number): Attent
 | `r`                      | `reroll`       |
 | `1`–`4`                  | pick a channel |
 | `[` `]`                  | `value` ±50    |
-| `-` `=`                  | `strength` ±50 |
+| `-` `=`                  | `strength` ∓1  |
 | Enter                    | `ok`           |
 
 It calls `preventDefault` on handled keys and ignores key repeat for triggers.
@@ -258,8 +260,8 @@ It calls `preventDefault` on handled keys and ignores key repeat for triggers.
 - Only the active station's editor calls the model or posts to the server. The view only reads.
 - Each page's `main.ts` only wires modules together. Turns, input, the cursor and the stream own their own state.
 - The editor never sends the floor, and never sends text past the knob.
-- The panel holds the state of the capped controls. On-screen toggles reset on every page load.
-- Every input goes through `handle()`. No pointer or selection listeners remain.
+- The panel holds the sliders' positions. Strength restarts at 0 on every page load, as do the on-screen toggles.
+- Panel and keyboard stand-in input goes through `handle()`. The mouse keeps its own listeners (README decision 3).
 - Long-running work is an `AsyncIterable` taking an `AbortSignal`: serial, keyboard, SSE and model calls.
 
 ## 7. Interfaces
@@ -267,7 +269,7 @@ It calls `preventDefault` on handled keys and ignores key repeat for triggers.
 See the README for the full contract. This plan's own additions:
 
 - `steering` strings are one `controlLine` per steering knob, e.g. `stance: very radical (strong)`. Boxed phrases are not included.
-- `strength <= 20` counts as a release.
+- A strength of 2% or less counts as a release.
 - The browser resets the board after opening the port.
 - Live posts go out at most every 200 ms, only on change, with the latest winning and one in flight. The first post goes out right after seeding.
 
@@ -324,7 +326,7 @@ Use wired Ethernet for the Pis.
 
 ## 11. Open questions and risks
 
-- **Leftover sliders at turn start:** see README decision 1.
+- **Leftover sliders at turn start:** settled by README decision 1. Strength is an encoder, so nothing is left up, and an angle left anywhere is harmless.
 - **Font size:** 11px is likely too small at kiosk viewing distance.
 - **View cost:** the view lays out the whole manifesto again on each live update. If the Pi struggles, show only a window there too.
 - **Prompt order:** the manifesto before the steering helps prompt caching, but gpt-oss:20b may follow that order less well.

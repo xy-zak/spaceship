@@ -84,49 +84,52 @@ Live  = { station: "B"|"C"|"D", tail: string, steering: string[] }
 ### Serial link (ESP32 → browser only)
 
 ```
-line    = (endless SP step | trigger | capped SP ch SP pos | "#" text) CR LF
-endless = "scrub" | "across" | "down"        step = nonzero signed int, positive = forward / next word / line below
+line    = (endless SP step | "strength" SP ch SP step | trigger | "value" SP ch SP pos | "#" text) CR LF
+endless = "scrub" | "across" | "down"        step = nonzero signed int, positive = forward / next word / line below / stronger
 trigger = "select" | "box" | "reroll" | "ok"
-capped  = "value" | "strength"               ch = 1..8   pos = 0..1000
+ch      = 1..8                               pos = 0..1000
+
+value    = a steering channel's slider (capped): the knob's angle
+strength = a steering channel's rotary encoder (endless): the knob's strength
 ```
 
-- **Boot sequence:** ROM boot messages (garbage to the browser), then an empty line, then `# spaceship-panel 1`, then every capped control as `value 1`, `strength 1`, `value 2`, `strength 2`…
+- **Boot sequence:** ROM boot messages (garbage to the browser), then an empty line, then `# spaceship-panel 1`, then every slider's position as `value 1`, `value 2`… Strength encoders have no position, so they report nothing at boot.
 - **Handshake:** the browser opens the port with `{ baudRate: 115200, bufferSize: 4096 }`, then resets the board: `setSignals({ dataTerminalReady: false, requestToSend: true })`, wait 100 ms, `setSignals({ requestToSend: false })`. It must never leave DTR on with RTS off, which boots the board into download mode. It drops every line until the marker arrives, or until 2 s have passed.
 - **Parsing:** the browser splits on `\r?\n`, keeps only printable ASCII, matches tokens exactly, and drops anything that doesn't fit the grammar, including `#` lines.
 
 ### Timings and limits
 
-| What                                             | Value                                                                            | Set by                   |
-| ------------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------ |
-| Endless and capped lines                         | at most one per 20 ms per control                                                | firmware                 |
-| Endless handling                                 | steps summed per animation frame, one render per frame                           | client                   |
-| Capped send rule                                 | a move of ≥20 from the last value sent, or exactly 0 or 1000 (always sent)       | firmware                 |
-| Release                                          | strength ≤ 20 removes the channel's knob (firmware's exact 0 is the normal case) | client                   |
-| Hold                                             | 1 s continuous                                                                   | firmware                 |
-| Knob drop after input stops                      | 300 ms                                                                           | client                   |
-| Live posts                                       | at most 5 per second, only on change, one in flight                              | client                   |
-| SSE `ping` / client watchdog / EventSource retry | 15 s / reconnect after 45 s with no event / 1 s                                  | server / client / server |
-| Model requests                                   | at most 4 at once; all aborted before a commit is posted                         | client                   |
-| Model context                                    | the visible window plus at most the 6,000 words before it                        | client                   |
-| Ollama                                           | `OLLAMA_NUM_PARALLEL=4`, `OLLAMA_KEEP_ALIVE=-1`, `OLLAMA_CONTEXT_LENGTH=16384`   | pA                       |
+| What                                             | Value                                                                                                          | Set by                   |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| Endless and capped lines                         | at most one per 20 ms per control                                                                              | firmware                 |
+| Endless handling                                 | steps summed per animation frame, one render per frame                                                         | client                   |
+| Capped send rule                                 | a move of ≥20 from the last value sent, or exactly 0 or 1000 (always sent)                                     | firmware                 |
+| Strength                                         | a knob opens at 10% on its channel's first touch; each encoder step adds 4%; at 2% or less the knob is removed | client                   |
+| Hold                                             | 1 s continuous                                                                                                 | firmware                 |
+| Knob drop after input stops                      | 300 ms                                                                                                         | client                   |
+| Live posts                                       | at most 5 per second, only on change, one in flight                                                            | client                   |
+| SSE `ping` / client watchdog / EventSource retry | 15 s / reconnect after 45 s with no event / 1 s                                                                | server / client / server |
+| Model requests                                   | at most 4 at once; all aborted before a commit is posted                                                       | client                   |
+| Model context                                    | the visible window plus at most the 6,000 words before it                                                      | client                   |
+| Ollama                                           | `OLLAMA_NUM_PARALLEL=4`, `OLLAMA_KEEP_ALIVE=-1`, `OLLAMA_CONTEXT_LENGTH=16384`                                 | pA                       |
 
 ## Mismatches found and how they are resolved
 
-| #   | Between           | Problem                                                                                                                                                        | Resolution                                                                                                                                 | Owner  |
-| --- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
-| 1   | client ↔ server   | The server keeps empty turns. The client assumed they were dropped, so its floor and the server's would differ after any empty turn.                           | Keep empty turns. Both sides use `floorOf` and `joinTurns` from `turn-rules.ts`.                                                           | client |
-| 2   | client ↔ server   | The server pings with `:` comments, which EventSource never shows to JavaScript. The client's 45 s watchdog wanted a `state` re-sent every 15 s.               | The server sends `event: ping` every 15 s, and the client's watchdog resets on any event.                                                  | both   |
-| 3   | client ↔ server   | The commit split was written twice: the server's inline loop and the client's `keptWords` for shading.                                                         | One `splitTail` in `src/turn-rules.ts`, imported by both.                                                                                  | both   |
-| 4   | client ↔ server   | The client could run 5–6 model streams at once. With SSE that fills Chromium's 6 connections per host, so a commit or live post would queue behind generation. | `ollama.ts` allows at most 4 requests at once (matching `OLLAMA_NUM_PARALLEL`), and `commitTurn` aborts all model requests before posting. | client |
-| 5   | client ↔ Ollama   | Past roughly 12,000 words the whole manifesto exceeds the 16k context, and Ollama silently cuts the start of the prompt.                                       | Cap the hidden `head` at the last 6,000 words.                                                                                             | client |
-| 6   | server ↔ Pis      | Two blockers the original plan missed: Vite refuses `pa.local`, and Ollama refuses an Origin it doesn't know.                                                  | `allowedHosts: ["pa.local"]`; the proxy sets the Origin header to `http://127.0.0.1:11434`; only `/ollama/v1/chat/completions` is proxied. | server |
-| 7   | firmware ↔ client | The plan relied on the board resetting when the port opens, which isn't reliable.                                                                              | The browser resets the board itself, using the handshake above. Both plans had already chosen the same sequence.                           | client |
-| 8   | firmware ↔ client | Bytes sent while the station sat on the view page might be held in the USB bridge, and a stale `ok` would commit the next turn the moment it starts.           | Drop all lines until `# spaceship-panel 1`, or for 2 s.                                                                                    | client |
-| 9   | firmware ↔ client | The firmware asked for a 4096-byte receive buffer; the client used the default of 255.                                                                         | `open({ baudRate: 115200, bufferSize: 4096 })`.                                                                                            | client |
-| 10  | firmware ↔ client | The firmware can send 50 lines per second per control. The client assumed about 30 and rendered on every scrub line.                                           | Sum the endless steps per animation frame.                                                                                                 | client |
-| 11  | firmware ↔ plan   | The plan said ADC1 gives room for 4 channels. WROOM-32 boards wire out only 6 ADC1 pins.                                                                       | 3 channels on ADC1, a 4th on ADC2 pins 25 and 26 (fine with Wi-Fi off). Plan page corrected.                                               | plan   |
-| 12  | server ↔ plan     | Under the agreed rule, the plan page's commit example credited "with a" to the wrong station.                                                                  | Example text changed so the split shown is the split the rule gives. Plan page corrected.                                                  | plan   |
-| 13  | client ↔ server   | Both plans edit `vite.config.ts`.                                                                                                                              | The server plan owns it, including the `view.html` input.                                                                                  | server |
+| #   | Between           | Problem                                                                                                                                                        | Resolution                                                                                                                                                                           | Owner  |
+| --- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| 1   | client ↔ server   | The server keeps empty turns. The client assumed they were dropped, so its floor and the server's would differ after any empty turn.                           | Keep empty turns. Both sides use `floorOf` and `joinTurns` from `turn-rules.ts`.                                                                                                     | client |
+| 2   | client ↔ server   | The server pings with `:` comments, which EventSource never shows to JavaScript. The client's 45 s watchdog wanted a `state` re-sent every 15 s.               | The server sends `event: ping` every 15 s, and the client's watchdog resets on any event.                                                                                            | both   |
+| 3   | client ↔ server   | The commit split was written twice: the server's inline loop and the client's `keptWords` for shading.                                                         | One `splitTail` in `src/turn-rules.ts`, imported by both.                                                                                                                            | both   |
+| 4   | client ↔ server   | The client could run 5–6 model streams at once. With SSE that fills Chromium's 6 connections per host, so a commit or live post would queue behind generation. | `ollama.ts` allows at most 4 requests at once (matching `OLLAMA_NUM_PARALLEL`), and `commitTurn` aborts all model requests before posting.                                           | client |
+| 5   | client ↔ Ollama   | Past roughly 12,000 words the whole manifesto exceeds the 16k context, and Ollama silently cuts the start of the prompt.                                       | Cap the hidden `head` at the last 6,000 words.                                                                                                                                       | client |
+| 6   | server ↔ Pis      | Two blockers the original plan missed: Vite refuses `pa.local`, and Ollama refuses an Origin it doesn't know.                                                  | `allowedHosts: ["pa.local"]`; the proxy sets the Origin header to `http://127.0.0.1:11434`; only `/ollama/v1/chat/completions` is proxied.                                           | server |
+| 7   | firmware ↔ client | The plan relied on the board resetting when the port opens, which isn't reliable.                                                                              | The browser resets the board itself, using the handshake above. Both plans had already chosen the same sequence.                                                                     | client |
+| 8   | firmware ↔ client | Bytes sent while the station sat on the view page might be held in the USB bridge, and a stale `ok` would commit the next turn the moment it starts.           | Drop all lines until `# spaceship-panel 1`, or for 2 s.                                                                                                                              | client |
+| 9   | firmware ↔ client | The firmware asked for a 4096-byte receive buffer; the client used the default of 255.                                                                         | `open({ baudRate: 115200, bufferSize: 4096 })`.                                                                                                                                      | client |
+| 10  | firmware ↔ client | The firmware can send 50 lines per second per control. The client assumed about 30 and rendered on every scrub line.                                           | Sum the endless steps per animation frame.                                                                                                                                           | client |
+| 11  | firmware ↔ plan   | The plan said ADC1 gives room for 4 channels. WROOM-32 boards wire out only 6 ADC1 pins.                                                                       | 3 channels on ADC1, a 4th on ADC2 pins 25 and 26 (fine with Wi-Fi off). Plan page corrected. Since superseded by decision 1: strength is an encoder, so a channel needs one ADC pin. | plan   |
+| 12  | server ↔ plan     | Under the agreed rule, the plan page's commit example credited "with a" to the wrong station.                                                                  | Example text changed so the split shown is the split the rule gives. Plan page corrected.                                                                                            | plan   |
+| 13  | client ↔ server   | Both plans edit `vite.config.ts`.                                                                                                                              | The server plan owns it, including the `view.html` input.                                                                                                                            | server |
 
 Already in agreement, no change needed:
 
@@ -139,10 +142,15 @@ Already in agreement, no change needed:
 - the view page never opens the serial port;
 - `brltty` and ModemManager are purged on the Pis.
 
-## Decisions for you
+## Decisions
 
-1. **Sliders left up by the last turn.** On page load the boot dump reports every slider. A channel whose strength is already past the gate would open a knob and pick from a freshly generated menu before the player has seen it. **Recommendation: channels arm at zero.** A channel opens a knob only after its strength has read 0 since the page loaded, or since its last knob pinned or was released. This adds one flag per channel in `steer()`. The plan text then becomes "after a knob pins, bring strength back to 0 to open a fresh knob".
-2. **Empty turns lock the text before them.** If a station presses OK without writing anything, its empty turn becomes the last turn, so the next station can no longer rewrite the text before it. **Recommendation: keep this.** It follows directly from "rewrite the previous turn only". The alternative is to drop empty turns.
+1. **Each steering channel is a slider for the angle and a rotary encoder for the strength, so nothing needs resetting between turns.**
+   - An encoder has no position, so every turn starts each channel at strength 0, wherever the last player left the knob. A slider only sets the angle, which can start anywhere; the player adjusts it as they go.
+   - A channel's knob appears on its first touch: the slider moving, or the encoder turning. It starts at 10% strength, inside the dead zone, so its link already shows the angle, but nothing is chosen until the strength is turned up through the gate. Each encoder step adds 4% (from 10%, the gate is about 10 steps, half a turn of a 20-detent encoder).
+   - Slider positions in the boot dump are not touches. A `value` line is a touch only when it moves a slider whose position was already known.
+   - After a knob pins, or is turned down to 2% or less and removed, the channel's next touch starts a fresh knob at 10%.
+2. **Empty turns lock the text before them, and are kept.** If a station presses OK without writing anything, its empty turn becomes the last turn, so the next station can no longer rewrite the text before it. This follows from "rewrite the previous turn only", and is how the server and its tests already work.
+3. **Mouse and keyboard stay as the alternative input.** The panel input is added beside them, so the mouse deletions in the plan page and in client.md section 3 are cancelled. On a panel station, what hover does with a mouse (highlighting a station's turn) follows the word cursor instead.
 
 ## Changes to each plan
 
@@ -154,8 +162,9 @@ Already in agreement, no change needed:
   - Sum endless steps per frame.
   - Allow at most 4 model requests at once, and abort them before committing.
   - Cap `head` at 6,000 words.
-  - If you accept decision 1, channels arm at zero.
-- **firmware.md:** no change. It already sends the marker, always sends exact 0 and 1000, and prints `\r\n` line endings.
+  - Strength comes from each channel's encoder, and a knob opens at 10% on its channel's first touch (decision 1).
+  - Keep the mouse and keyboard input (decision 3).
+- **firmware.md:** strength is a rotary encoder per channel, sent as `strength ch step`, and only the angle sliders are capped, so the pin map, the boot dump and the parts list change (decision 1). It already sends the marker, always sends exact 0 and 1000, and prints `\r\n` line endings.
 
 ## Still unverified (step 1 of the build order)
 
