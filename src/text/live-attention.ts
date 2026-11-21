@@ -1,29 +1,12 @@
 import { linesOf, streamCompletion } from "../llm/ollama.ts"
+import { MAX_BOXES, REQUEST, SYSTEM } from "../prompts/attention.ts"
 import type { AttentionBox, AttentionSource } from "./attention.ts"
 import { wordSpans } from "./segments.ts"
-
-const MAX_BOXES = 3
-
-const SYSTEM_PROMPT = `
-The user message is the start of a manifesto on design education, cut off where the reader is. Pick the key phrases already in it that the very next words depend on most: the main influences on what comes right after the cut.
-
-- Pick 1 to 3 phrases: 1 when a single phrase drives what comes next, more only when several do.
-- Each phrase is an exact, unbroken copy of 2 to 8 consecutive words from the manifesto. Do not skip, change, add or predict words.
-- In every phrase, wrap the single word that matters most in [brackets].
-- Output one phrase per line and nothing else.
-
-EXAMPLE
-User: Design education must teach doubt before style. Every brief should end with a question the client did not ask. A studio is not a
-Assistant:
-teach [doubt] before style
-a question the [client] did not ask
-A [studio] is not a
-`.trim()
 
 export const liveAttention: AttentionSource = async function* (text, signal) {
   const textWords = wordsOf(text)
   const yielded = new Set<number>()
-  const deltas = streamCompletion({ system: SYSTEM_PROMPT, user: text, temperature: 0.3, maxTokens: 1000, signal })
+  const deltas = streamCompletion({ ...REQUEST, system: SYSTEM, user: text, signal })
 
   for await (const line of linesOf(deltas)) {
     const box = boxFromLine(line, textWords)

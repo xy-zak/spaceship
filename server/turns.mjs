@@ -7,6 +7,7 @@ const MAX_BODY_CHARS = 256 * 1024
 const MAX_TAIL_CHARS = 50_000
 const MAX_STEERING_LINES = 16
 const MAX_STEERING_CHARS = 200
+const MAX_CLAIM_CHARS = 400
 const PING_MS = 15_000
 /** A station this far behind on events has a dead connection; dropping it makes it reconnect. */
 const MAX_BACKLOG_BYTES = 1_000_000
@@ -41,17 +42,21 @@ export function createTurnServer(file, wordLimitName = DEFAULT_WORD_LIMIT) {
     "GET /api/events": subscribe,
     "POST /api/live": async (req, res) => {
       const body = await readJson(req)
-      refuseUnless(isStation(body?.station) && isTail(body.tail) && isSteering(body.steering), 400, "expected { station, tail, steering }")
+      refuseUnless(
+        isStation(body?.station) && isTail(body.tail) && isSteering(body.steering) && isClaim(body.claim),
+        400,
+        "expected { station, tail, steering, claim? }",
+      )
       refuseUnlessActive(body.station)
-      live = { station: body.station, tail: body.tail, steering: body.steering }
+      live = { station: body.station, tail: body.tail, steering: body.steering, claim: body.claim }
       broadcast("live", live)
       res.writeHead(204).end()
     },
     "POST /api/commit": async (req, res) => {
       const body = await readJson(req)
-      refuseUnless(isStation(body?.station) && isTail(body.tail), 400, "expected { station, tail }")
+      refuseUnless(isStation(body?.station) && isTail(body.tail) && isClaim(body.claim), 400, "expected { station, tail, claim? }")
       refuseUnlessActive(body.station)
-      send(res, 200, change(applyCommit(state, body.station, body.tail, wordLimit)))
+      send(res, 200, change(applyCommit(state, body.station, body.tail, wordLimit, body.claim)))
     },
     "POST /api/skip": (req, res) => {
       refuseUnless(isLocal(req), 403, "localhost only")
@@ -162,10 +167,10 @@ const isLocal = (req) => LOCAL_ADDRESSES.includes(req.socket.remoteAddress)
 
 const initialState = () => ({ active: STATIONS[0], turns: [{ station: "opening", text: OPENING }] })
 
-/** Pure: credits the tail's leading words that match the last turn to that turn, appends the rest (at most `wordLimit` words) as the new turn, and passes the turn on. */
-export const applyCommit = ({ turns }, station, tail, wordLimit = null) => ({
+/** Pure: credits the tail's leading words that match the last turn to that turn, appends the rest (at most `wordLimit` words, with its `claim`) as the new turn, and passes the turn on. */
+export const applyCommit = ({ turns }, station, tail, wordLimit = null, claim) => ({
   active: nextStation(station),
-  turns: appendTail(turns, station, tail, wordLimit),
+  turns: appendTail(turns, station, tail, wordLimit, claim),
 })
 
 function parseState(json) {
@@ -181,6 +186,8 @@ const isStation = (value) => STATIONS.includes(value)
 
 const isTail = (value) => typeof value === "string" && value.length <= MAX_TAIL_CHARS
 
+const isClaim = (value) => value === undefined || (typeof value === "string" && value.length <= MAX_CLAIM_CHARS)
+
 const isSteering = (value) =>
   Array.isArray(value) && value.length <= MAX_STEERING_LINES && value.every((line) => typeof line === "string" && line.length <= MAX_STEERING_CHARS)
 
@@ -188,4 +195,6 @@ const isState = (value) =>
   isStation(value?.active) &&
   Array.isArray(value.turns) &&
   value.turns.length > 0 &&
-  value.turns.every((turn, index) => typeof turn?.text === "string" && (index === 0 ? turn.station === "opening" : isStation(turn.station)))
+  value.turns.every(
+    (turn, index) => typeof turn?.text === "string" && isClaim(turn.claim) && (index === 0 ? turn.station === "opening" : isStation(turn.station)),
+  )

@@ -21,13 +21,35 @@
       }
       header {
         top: 0;
+        z-index: 1;
       }
       footer {
         bottom: 0;
       }
+      /* The manifesto, and the argument beside it, which stays in view as the manifesto scrolls. */
+      #page {
+        display: grid;
+        grid-template-columns: minmax(0, 90ch) minmax(0, 36ch);
+        justify-content: center;
+        gap: calc(3 * var(--gap));
+        padding-inline: var(--padding);
+      }
+      #argument {
+        position: sticky;
+        top: 0;
+        margin: 0;
+        padding-block: var(--padding);
+        color: var(--ink-2);
+      }
+      @media (width < 140ch) {
+        #page {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        #argument {
+          position: static;
+        }
+      }
       main {
-        width: min(90ch, 100% - 2 * var(--padding));
-        margin-inline: auto;
         padding-block: var(--padding);
         line-height: var(--line);
         /* A turn's text breaks into paragraphs at its blank lines. */
@@ -59,7 +81,10 @@
     <svg id="authors" width="1" height="1" aria-hidden="true"><g id="author-brackets"></g></svg>
     <div id="bookmarks" aria-hidden="true"></div>
     <header><output id="banner">connecting…</output></header>
-    <main id="manifesto"></main>
+    <div id="page">
+      <main id="manifesto"></main>
+      <aside><ol id="argument" aria-label="the argument" hidden></ol></aside>
+    </div>
     <footer><output id="steering"></output></footer>
     <script type="module" src="/src/view/main.ts"></script>
   </body>

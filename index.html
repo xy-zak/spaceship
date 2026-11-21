@@ -63,6 +63,85 @@
           color: inherit;
         }
       }
+      /* The argument above the text: the thesis and the last claims. */
+      #argument {
+        box-sizing: border-box;
+        width: clamp(30ch, 100% - 2 * var(--margin), 90ch);
+        margin: 0 auto;
+        padding: var(--padding) 0 0 3ch;
+        font-size: var(--hud-size);
+        line-height: var(--hud-line);
+      }
+      /* The plan card under the main knob: the move, the claim the hidden text argues and its outline, each point filling as the shown text makes it. */
+      #plan {
+        position: absolute;
+        top: 0;
+        left: 0;
+        box-sizing: border-box;
+        padding-top: var(--gap);
+        pointer-events: none;
+        font-size: var(--hud-size);
+        line-height: var(--hud-line);
+        color: var(--ink-2);
+
+        p {
+          display: flex;
+          gap: var(--gap);
+          margin: 0 0 var(--gap);
+          color: var(--ink-3);
+
+          b {
+            font-weight: inherit;
+            color: var(--ink);
+          }
+          span {
+            margin-left: auto;
+          }
+        }
+        ol {
+          display: grid;
+          gap: 2px;
+          margin: 0;
+          padding: 0;
+          list-style: none;
+        }
+        li {
+          position: relative;
+          padding-left: calc(var(--knob-future) + var(--gap));
+
+          > span {
+            position: absolute;
+            top: calc((var(--hud-line) - var(--knob-future)) / 2);
+            left: 0;
+            box-sizing: border-box;
+            width: var(--knob-future);
+            height: var(--knob-future);
+            border: var(--hair) dashed var(--ink);
+            border-radius: 50%;
+            background: conic-gradient(var(--ink) calc(var(--fill) * 1turn), var(--bg) 0);
+            transition: --fill var(--settle);
+          }
+          b {
+            font-weight: inherit;
+            color: var(--ink-3);
+          }
+          &:first-child {
+            color: var(--ink);
+          }
+          &[data-made] > span {
+            border-style: solid;
+            border-color: var(--hot);
+            background: conic-gradient(var(--hot) calc(var(--fill) * 1turn), var(--bg) 0);
+          }
+          &[data-made] b,
+          &.planning {
+            color: var(--hot);
+          }
+          &.planning {
+            padding-left: 0;
+          }
+        }
+      }
       ::highlight(attention-word) {
         text-decoration: underline var(--stroke) var(--ink);
       }
@@ -632,7 +711,12 @@
     </style>
   </head>
   <body>
+    <ol id="argument" aria-label="the argument so far" hidden></ol>
     <div id="text"></div>
+    <section id="plan" aria-label="the plan for the text past the knob" hidden>
+      <p></p>
+      <ol></ol>
+    </section>
     <svg id="links" aria-hidden="true">
       <g id="author-brackets"></g>
       <path id="attention-links" />

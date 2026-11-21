@@ -1,9 +1,11 @@
 import { layoutNextLine, prepareWithSegments, type PreparedTextWithSegments } from "@chenglou/pretext"
+import { showArgument } from "../argument.ts"
 import { createAuthorMarks, type AuthorBlock } from "../author-marks.ts"
 import { $ } from "../dom.ts"
 import { abortAll } from "../llm/ollama.ts"
 import { commitTurn, createLivePoster, stationOf, swapTo, turnEvents, visibleWindow } from "../net/turns.ts"
 import { centeredAt, type Point } from "../point.ts"
+import { controlLine } from "../prompts/manifesto.ts"
 import { LENSES, OPENING, type Station } from "../stations.ts"
 import { appendTail, lastAuthors, splitTail, tidySpace, wordsOf, type AuthorRun, type Turn } from "../turn-rules.ts"
 import { createAttentionKnobs } from "./attention-knobs.ts"
@@ -14,9 +16,10 @@ import { createFutureKnobs } from "./future-knobs.ts"
 import { layoutLines } from "./layout.ts"
 import { circleOf } from "./links.ts"
 import { liveAttention } from "./live-attention.ts"
-import { controlLine, liveSourceFor } from "./live-completion.ts"
+import { liveSourceFor } from "./live-completion.ts"
 import { liveDimensionFor } from "./live-dimension.ts"
 import { liveRealization } from "./live-realization.ts"
+import { createPlanCard } from "./plan-card.ts"
 import { createPointer, type Aim, type PointerTarget, type SelectionPreview, type Zone } from "./pointer.ts"
 import { wordSpans, type Span } from "./segments.ts"
 import { simulatedAttention } from "./simulated-attention.ts"
@@ -59,7 +62,15 @@ measure.font = style.font
 const isLive = new URLSearchParams(location.search).get("live") === "true"
 /** Without a station the editor runs alone from the opening, for development. */
 const station = stationOf(location.search)
-const stream = createTextStream(isLive ? liveSourceFor(station) : simulatedSource, render)
+const planCard = createPlanCard($("#plan"), isLive ? liveRealization : simulatedRealization)
+const liveSource = isLive
+  ? liveSourceFor(
+      station,
+      () => seededTurns,
+      () => planCard.show(liveSource?.plan()),
+    )
+  : undefined
+const stream = createTextStream(liveSource ?? simulatedSource, render)
 const attention = createAttentionKnobs({
   source: isLive ? liveAttention : simulatedAttention,
   textElement: element,
@@ -92,6 +103,8 @@ let caret: Caret = { line: 0, x: 0 }
 let shownText = ""
 let story: StoryLayout = { content: "", text: "", combined: "", sentences: [] }
 let shownCount: number | undefined
+/** The words the editor was seeded with; this turn's passage starts after them. */
+let seedWords = 0
 /** Words shown where the knob last rested, or where a drag back last discarded the text past it. */
 let restCount = 0
 let restTimer: number | undefined
@@ -113,7 +126,7 @@ let lastDrag: { point: Point; at: number } | undefined
 let seededTurns: Turn[] = []
 /** How many new words this turn may add, from the server; null for no limit. */
 let wordLimit: number | null = null
-let postLive: (tail: string, steering: string[]) => void = () => {}
+let postLive: (tail: string, steering: string[], claim?: string) => void = () => {}
 let isCommitting = false
 
 startSound()
@@ -162,9 +175,11 @@ createPointer({
   pull: pullToward,
 })
 
-// Enter stands in for the panel's OK
+// Enter stands in for the panel's OK, r for its reroll
 addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.repeat && station && !(event.target as Element).closest("dialog, #tray")) passTurn(station)
+  if (event.repeat || (event.target as Element).closest("dialog, #tray")) return
+  if (event.key === "Enter" && station) passTurn(station)
+  if (event.key === "r" && !event.ctrlKey && !event.metaKey && !event.altKey) reroll()
 })
 if (station) followTurns(station)
 else start({ head: "", text: OPENING, floorWords: countWords(OPENING) })
@@ -182,6 +197,7 @@ async function followTurns(station: Station) {
     wordLimit = event.state.wordLimit
     if (!seededTurns.length) {
       seededTurns = turns
+      showArgument($<HTMLOListElement>("#argument"), turns, { last: 2 })
       start(visibleWindow(turns))
       postLive = createLivePoster(station)
       report()
@@ -192,9 +208,10 @@ async function followTurns(station: Station) {
 
 /** The knob starts after the last seeded word, so the turn opens with the whole previous turn shown. */
 function start(seed: Seed) {
+  seedWords = countWords(seed.text)
   stream.seed(seed)
   addEventListener("resize", () => moveTo(pointAt(caret, metricsOf())))
-  moveTo(pointAt(caretAfterWords(countWords(seed.text)) ?? caret, metricsOf()))
+  moveTo(pointAt(caretAfterWords(seedWords) ?? caret, metricsOf()))
 }
 
 async function passTurn(station: Station) {
@@ -202,7 +219,7 @@ async function passTurn(station: Station) {
   isCommitting = true
   turnElement.value = "passing…"
   abortAll()
-  const result = await commitTurn(station, tail())
+  const result = await commitTurn(station, tail(), liveSource?.claim())
   if (result !== "failed") return swapTo("view")
   isCommitting = false
   turnElement.value = "not sent, press Enter again"
@@ -222,6 +239,7 @@ function moveTo({ x, y }: Point) {
     point = pointAt(clamped, metricsOf())
   }
   handle.style.translate = centeredAt(point, handle.offsetWidth)
+  planCard.placeAt({ x: left + scrollX, y: point.y + parseFloat(style.lineHeight) / 2 }, width)
   render()
   restartRest()
 }
@@ -275,6 +293,7 @@ function render() {
     drawAuthorMarks(authorBlocks(text, lastAuthors(appendTail(seededTurns, station, tail(), wordLimit), count)), element.getBoundingClientRect().left + scrollX)
   attention.update(text)
   futureKnobs.follow(story)
+  planCard.follow(story, seedWords)
   report()
 }
 
@@ -309,6 +328,7 @@ function report() {
       .controls()
       .slice(0, 16)
       .map((control) => controlLine(control).slice(0, 200)),
+    liveSource?.claim(),
   )
 }
 
@@ -347,6 +367,13 @@ function restartDwell() {
  */
 function afterStreaming(request: () => void) {
   stream.streaming().then(request)
+}
+
+/** The next planned claim, or in simulated mode another continuation, written from the knob on. */
+function reroll() {
+  if (isChoosing || isCommitting) return
+  liveSource?.reroll()
+  regenerateFuture()
 }
 
 function regenerateFuture() {

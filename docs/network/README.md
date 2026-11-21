@@ -45,7 +45,7 @@ export function nextStation(station: Station): Station
 
 // src/turn-rules.ts: the document rules both sides must agree on
 import type { Station } from "./stations.ts"
-export type Turn = { station: "opening" | Station; text: string }
+export type Turn = { station: "opening" | Station; text: string; claim?: string } // claim: "move: claim", the one the turn was planned to make
 export const wordsOf = (text: string) => text.match(/\S+/g) ?? []
 export function floorOf(turns: Turn[]): Turn[] // turns.length === 1 ? turns : turns.slice(0, -1)
 export function joinTurns(turns: Turn[]): string // non-empty texts joined by one space, or by the blank line a turn starts with
@@ -61,7 +61,7 @@ The server's commit uses `appendTail`. The view marks live text with it as well,
 
 ```
 State = { active: "B"|"C"|"D", turns: Turn[], wordLimit: number | null }   turns[0] is the opening
-Live  = { station: "B"|"C"|"D", tail: string, steering: string[] }
+Live  = { station: "B"|"C"|"D", tail: string, steering: string[], claim?: string }
 ```
 
 - **Tail:** the shown text after the floor, up to the main knob. Words are joined by single spaces, paragraphs by one blank line (`\n\n`), which may also open the tail; `tidySpace` in `src/turn-rules.ts` writes it that way. It never includes text generated past the knob.
@@ -74,7 +74,7 @@ Live  = { station: "B"|"C"|"D", tail: string, steering: string[] }
 | ----------------------------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /api/events`                   | none                                                                           | SSE stream: `retry: 1000`, then `state`, then `live` if this turn already has one. After that: `state` after every commit, skip or reset; `live` after every accepted live post; `ping` every 15 s |
 | `POST /api/live`                    | `Live`                                                                         | 204 · 400 · 409 not active · 413                                                                                                                                                                   |
-| `POST /api/commit`                  | `{station, tail}`                                                              | 200 with the new `State` · 400 · 409 not active (already committed or skipped) · 413 · 500 save failed, nothing changed                                                                            |
+| `POST /api/commit`                  | `{station, tail, claim?}`                                                      | 200 with the new `State` · 400 · 409 not active (already committed or skipped) · 413 · 500 save failed, nothing changed                                                                            |
 | `POST /api/skip`, `POST /api/reset` | none, localhost only                                                           | 200 with `State` · 403                                                                                                                                                                             |
 | `POST /ollama/v1/chat/completions`  | OpenAI chat request: `stream`, `temperature`, `reasoning_effort`, `max_tokens` | Ollama's stream, cancelled when the browser aborts · 502 if Ollama is down                                                                                                                         |
 

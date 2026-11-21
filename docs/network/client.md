@@ -59,12 +59,36 @@
 
 **LLM sources**
 
-- **`live-completion.ts`:**
-  - Delete `expandToStoryStart` and the story openings, and rewrite the prompt and example for a manifesto.
-  - One system prompt for steered and unsteered calls: the DAE Institutional Plan 2025-2028 as background the manifesto may take up or reject, the voice, the rules, one example, then the station's lens and themes (`LENS_THEMES` in `src/stations.ts`) and the word count last.
-  - `liveSourceFor(station)` gives each editor the source for its lens.
-  - Export `controlLine`.
+- **`src/prompts/`: everything the model is told,** one file per task, so a prompt can be changed or tried without touching the code that sends and reads it.
+  - `manifesto.ts` (writing), `plan.ts` (planning), `menu.ts` (the steering catalog and its prompt), `realization.ts`, `attention.ts`, and `bank.ts`, the argument bank.
+  - **`bank.ts`, the argument bank:** 546 entries from DAE's Institutional Plan 2025-2028 and annual reports 2021-2025, read in full and restated by Claude; the documents' text stays in the git-ignored `sources/dae/`.
+    - Each entry has its source and page, a kind (position, fact, example, tension, or a trend across the reports), the lenses it serves, a theme, the point, and the strongest case for and against it.
+    - Left out: personal names, named sites and buildings (the canal district, the current factory building, the tech campus: cities, countries, events and organisations stay), the social-safety and complaints sections, and any run of six words from the documents.
+  - Each file holds its rules as arrays, one rule per entry (`bulleted` in `format.ts` writes them as "- " lines), its example, its request settings and how much of the manifesto it shows.
+  - A prompt that fixes an output format names the parser that reads it.
+- **`live-completion.ts`:** `liveSourceFor(station, turns, onPlan)` gives each editor the source for its lens. Each continuation writes a planned claim.
+  - **Plan, then write.** `live-plan.ts` asks for `CANDIDATES` (3) claims for the passage's move, each with an outline: `because`, `for instance`, `so`. Each candidate is used as soon as it is complete; the rest arrive in the background. One plan is made per steering, and only the latest steering's plan runs.
+    - **Move:** the thesis first, then `ARC` in turn: diagnose, define, example, objection, consequence, demand, call. A `move` control (it replaced `form` in the catalog) overrides the arc.
+    - **What the planner sees:** the thesis, the argument so far (every turn's claim), the claims a reroll passed over, the steering, the manifesto's last 80 words, and `SOURCES` (6) bank entries.
+    - **Sources:** `sourcesFor` takes the lens's entries, one per theme, favouring the kinds that suit the move (`KINDS_FOR`) and the Institutional Plan, and otherwise picks at random. The planner names the source each claim argues from (`SOURCE:`, which the parser skips); without that line qwen ignored the sources.
+    - **The knob on DAE:** the menu always offers `toward DAE` (supportive | critical) first. Supportive shows the planner each source's case for, critical its case against; midway, slight or absent, both.
+    - **Parsing:** labels may be bolded or missing (an unlabelled line is the next part the candidate lacks). Claims lose their contrasts, as the text does. Candidates that repeat the argument, an offered claim or each other are dropped; with none left the planner is asked once more.
+    - **Write step:** the claim and its outline go in the user message as `CLAIM TO MAKE` and `OUTLINE`, and the manifesto is cut to its last 300 words.
+  - **Reroll** (`r` on the keyboard, standing in for the panel's button) steps to the next candidate and rewrites the text past the knob for it. Past the last, it asks for new claims that avoid the ones offered. The place reached is kept when the steering changes.
+  - **Commit and live:** the editor sends the claim as `"move: claim"` in `/api/commit` and `/api/live`; the server stores it on the turn.
   - The manifesto block stays **after** the key phrases and controls. Putting it first would let Ollama reuse its cached prefix when only the steering changes, but on qwen3-vl:8b it broke more sentences (1 of 3 joined) and ignored strong controls (1 of 3 followed).
+  - The example is about bus timetables, because qwen copied a design-education example into the manifesto, even reworded.
+- **`manifesto-filters.ts`:** the writer's stream passes through `FILTERS`, in order; drop one from the list to try the writing without it.
+  1. `withoutEcho` drops a repeat of the last words.
+  2. `withoutContrasts` rewrites "not X but Y" and ", not X" as plain claims. Prompting alone left them in about half the sentences.
+  3. `withoutCopies` drops sentences the manifesto or the example already has, and restarts of the last sentence, then ends a stream that keeps copying.
+  4. `withFullStop` closes the manifesto's sentence when the model starts a new one.
+  5. `inParagraphs` holds paragraphs to three to six sentences.
+- **The plan on screen.**
+  - `plan-card.ts` puts a card under the main knob: the move, the candidate's place (1/3), the claim the hidden text argues, and its outline.
+  - Each point fills as surely as a revealed sentence makes it. The realization tracker scores the point as a control (`realizedBeforeKnob`), and a point is made at 0.8.
+  - `argument.ts` lists the argument's claims: in the editor above the text (the thesis and the last two), and in the view beside the manifesto, the live claim in peach.
+- `data/evaluations/` (git-ignored) holds the nine-turn B-C-D sessions these were measured on.
 - **`live-attention.ts`, `live-dimension.ts`:** new prompts; use `streamCompletion` from `llm/ollama.ts`; remove the API-key checks.
 - **`live-dimension.ts` catalog:**
   - Slots are marked by empty labels (`options: []`, or `low: ""`).
@@ -76,7 +100,7 @@
   - Yields `{ index: n - 1, confidence: min(score, 10) / 10 }` for asked indices only, at `temperature: 0`.
 - **Other:** `story/prompt.ts` is deleted; its prompt moved into `live-completion.ts`. In `sound/engine.ts`, delete `setSoundOn` and `isSoundOn`; with the autoplay flag the audio context starts already running. In `text-offsets.ts`, delete `textOffsetOf`.
 
-**Unchanged:** `caret.ts`, `layout.ts`, `segments.ts`, `words.ts`, `story-layout.ts`, `realization-tracker.ts`, `status-line.ts`.
+**Unchanged:** `caret.ts`, `layout.ts`, `segments.ts`, `words.ts`, `story-layout.ts`, `status-line.ts`.
 
 **`index.html`**
 

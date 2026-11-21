@@ -1,3 +1,4 @@
+import { showArgument } from "../argument.ts"
 import { createAuthorMarks } from "../author-marks.ts"
 import { $, $$ } from "../dom.ts"
 import { stationOf, swapTo, turnEvents, type Live, type TurnState } from "../net/turns.ts"
@@ -8,6 +9,7 @@ const station = stationOf(location.search)
 const banner = $<HTMLOutputElement>("#banner")
 const manifesto = $("#manifesto")
 const steering = $<HTMLOutputElement>("#steering")
+const argument = $<HTMLOListElement>("#argument")
 const drawAuthorMarks = createAuthorMarks($<SVGGElement>("#author-brackets"), $("#bookmarks"))
 let state: TurnState | undefined
 
@@ -27,7 +29,8 @@ function render({ active, turns, wordLimit }: TurnState, live?: Live) {
   show(banner, `${active} is writing · ${LENSES[active]}${station && nextStation(active) === station ? " · next: you" : ""}`)
   banner.dataset.station = active
   show(steering, live?.steering.join(" · ") ?? "")
-  const shown = live ? appendTail(turns, live.station, live.tail, wordLimit) : turns
+  const shown = live ? appendTail(turns, live.station, live.tail, wordLimit, live.claim) : turns
+  showArgument(argument, shown, { isLive: live !== undefined })
   const spans = shown.flatMap((turn, index) => (turn.text ? [spanOf(turn, live !== undefined && index === shown.length - 1)] : []))
   manifesto.replaceChildren(...spans.flatMap((span, index) => (index ? [" ", span] : [span])))
   markAuthors()

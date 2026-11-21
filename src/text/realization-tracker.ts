@@ -1,6 +1,6 @@
 import type { RealizationSource } from "./realization.ts"
 import type { Span } from "./segments.ts"
-import { isComplete, sentenceAt, sentenceUnderKnob, type StoryLayout } from "./story-layout.ts"
+import { endOf, isComplete, sentenceAt, sentenceUnderKnob, type StoryLayout } from "./story-layout.ts"
 
 const REQUEST_DELAY_MS = 300
 /** Only this many sentences after a tracking's origin are scored, to keep requests small. */
@@ -22,7 +22,7 @@ export function createRealizationTracker(source: RealizationSource, onScore: () 
   let latest: { trackings: Tracking[]; story: StoryLayout } | undefined
   let timer: number | undefined
 
-  return { score, realizedUnderKnob }
+  return { score, realizedUnderKnob, realizedBeforeKnob }
 
   /** Requests at most once per `REQUEST_DELAY_MS`, for the latest text, so streaming and dragging still get scored as they go. */
   function score(trackings: Tracking[], story: StoryLayout) {
@@ -40,6 +40,16 @@ export function createRealizationTracker(source: RealizationSource, onScore: () 
     if (!sentence || sentence.start < origin || !isComplete(story, index)) return
     const confidence = confidences.get(keyOf(control, sentenceAt(story.combined, sentence)))
     return confidence === undefined ? undefined : { sentence, confidence }
+  }
+
+  /** The surest any sentence from the tracking's origin up to the main knob delivers the control, once one of them is scored. */
+  function realizedBeforeKnob({ control, origin }: Tracking, { text, combined, sentences }: StoryLayout) {
+    const knobAt = text.trimEnd().length
+    const scores = sentences.flatMap((sentence) =>
+      sentence.start >= origin && endOf(combined, sentence) <= knobAt ? [confidences.get(keyOf(control, sentenceAt(combined, sentence)))] : [],
+    )
+    const scored = scores.filter((score) => score !== undefined)
+    return scored.length ? Math.max(...scored) : undefined
   }
 
   async function request({ control, origin, controller: { signal } }: Tracking, story: StoryLayout) {

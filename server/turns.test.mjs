@@ -43,6 +43,15 @@ test("commit split", () => {
   }
 })
 
+test("a turn keeps the claim it was planned to make, unless it adds no words", () => {
+  const turns = [opening, { station: "B", text: "teach doubt.", claim: "thesis: Design education must teach doubt." }]
+  assert.deepEqual(applyCommit({ active: "C", turns }, "C", "teach doubt. Grades lie.", null, "diagnose: Grades lie.").turns.slice(1), [
+    { station: "B", text: "teach doubt.", claim: "thesis: Design education must teach doubt." },
+    { station: "C", text: "Grades lie.", claim: "diagnose: Grades lie." },
+  ])
+  assert.deepEqual(applyCommit({ active: "C", turns }, "C", "teach doubt.", null, "diagnose: Grades lie.").turns.at(-1), { station: "C", text: "" })
+})
+
 test("a turn adds at most its word limit, after the words it keeps", async (t) => {
   const turns = [opening, { station: "B", text: "teach doubt." }]
   assert.deepEqual(applyCommit({ active: "C", turns }, "C", "teach doubt.\n\nGrades lie about it", 2).turns.slice(1), [
@@ -75,7 +84,7 @@ test("events start with state and relay live and commit", async (t) => {
   const started = { type: "state", data: sent({ active: "B", turns: [opening] }) }
   assert.deepEqual((await watcher.next()).value, started)
 
-  const live = { station: "B", tail: "teach doubt", steering: ["stance: very radical (strong)"] }
+  const live = { station: "B", tail: "teach doubt", steering: ["stance: very radical (strong)"], claim: "thesis: Design education must teach doubt." }
   assert.equal((await post(base, "/api/live", live)).status, 204)
   assert.deepEqual((await watcher.next()).value, { type: "live", data: live })
   assert.deepEqual(await events(base, 2), [started, { type: "live", data: live }])
@@ -99,6 +108,7 @@ test("refuses bad posts", async (t) => {
   assert.equal(await status("/api/live", { station: "Z", tail: "", steering: [] }), 400)
   assert.equal(await status("/api/live", { station: "B", tail: "", steering: Array(17).fill("x") }), 400)
   assert.equal(await status("/api/live", { station: "B", tail: "", steering: ["x".repeat(201)] }), 400)
+  assert.equal(await status("/api/live", { station: "B", tail: "", steering: [], claim: "x".repeat(401) }), 400)
   assert.equal(await status("/api/commit", "{"), 400)
   assert.equal(await status("/api/commit", null), 400)
   assert.equal(await status("/api/commit", { station: "B", tail: "x".repeat(50_001) }), 400)

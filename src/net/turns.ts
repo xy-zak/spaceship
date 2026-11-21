@@ -4,7 +4,8 @@ import { floorOf, joinTurns, tidySpace, wordsOf, type Turn } from "../turn-rules
 
 /** `wordLimit` is how many new words a turn may add, null for no limit. */
 export type TurnState = { active: Station; turns: Turn[]; wordLimit: number | null }
-export type Live = { station: Station; tail: string; steering: string[] }
+/** `claim` is the one the live text was planned to make, as "move: claim". */
+export type Live = { station: Station; tail: string; steering: string[]; claim?: string }
 export type TurnEvent = { type: "state"; state: TurnState } | { type: "live"; live: Live } | { type: "offline" }
 
 const LIVE_MS = 200
@@ -63,8 +64,8 @@ export function createLivePoster(station: Station) {
   let latest = ""
   let sent = ""
   let isBusy = false
-  return (tail: string, steering: string[]) => {
-    latest = JSON.stringify({ station, tail, steering })
+  return (tail: string, steering: string[], claim?: string) => {
+    latest = JSON.stringify({ station, tail, steering, claim })
     if (!isBusy) flush()
   }
 
@@ -80,9 +81,9 @@ export function createLivePoster(station: Station) {
 }
 
 /** `refused` means the turn already moved on (a double commit or a skip), so the caller waits for the new state like after `done`. */
-export async function commitTurn(station: Station, tail: string): Promise<"done" | "refused" | "failed"> {
+export async function commitTurn(station: Station, tail: string, claim?: string): Promise<"done" | "refused" | "failed"> {
   try {
-    const response = await fetch("/api/commit", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ station, tail }) })
+    const response = await fetch("/api/commit", { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ station, tail, claim }) })
     return response.ok ? "done" : response.status === 409 ? "refused" : "failed"
   } catch {
     return "failed"

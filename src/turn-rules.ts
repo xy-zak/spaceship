@@ -1,7 +1,8 @@
 import type { Station } from "./stations.ts"
 import { firstWords } from "./text/words.ts"
 
-export type Turn = { station: "opening" | Station; text: string }
+/** `claim` is the one claim the turn's passage was planned to make, as "move: claim"; the claims of all turns are the manifesto's argument. */
+export type Turn = { station: "opening" | Station; text: string; claim?: string }
 
 export const wordsOf = (text: string) => text.match(/\S+/g) ?? []
 
@@ -24,11 +25,12 @@ export function tidySpace(text: string) {
   return text.trimEnd().replace(/\s+/g, (space, at: number) => (space.includes("\n") ? "\n\n" : at ? " " : ""))
 }
 
-/** The turns after `station` commits `tail`, or what the views show while it is still live text. The new turn keeps at most `wordLimit` words. */
-export function appendTail(turns: Turn[], station: Station, tail: string, wordLimit: number | null = null): Turn[] {
+/** The turns after `station` commits `tail`, or what the views show while it is still live text. The new turn keeps at most `wordLimit` words, and `claim` if it has any. */
+export function appendTail(turns: Turn[], station: Station, tail: string, wordLimit: number | null = null, claim?: string): Turn[] {
   const { kept, fresh } = splitTail(turns, tail)
   const settled = turns.length === 1 ? turns : [...turns.slice(0, -1), { ...turns[turns.length - 1], text: kept }]
-  return [...settled, { station, text: wordLimit === null ? fresh : firstWords(fresh, wordLimit) }]
+  const text = wordLimit === null ? fresh : firstWords(fresh, wordLimit)
+  return [...settled, { station, text, ...(claim && text ? { claim } : {}) }]
 }
 
 export type AuthorRun = { station: Turn["station"]; words: number }

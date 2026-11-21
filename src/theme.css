@@ -71,3 +71,21 @@
     clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 5px 50%);
   }
 }
+/* The argument's claims, in the editor and the view: each marked with its station, its move set apart, and the one live text argues in peach. */
+#argument {
+  li {
+    padding-left: var(--gap);
+    border-left: 3px solid var(--station);
+
+    & + li {
+      margin-top: 4px;
+    }
+  }
+  b {
+    font-weight: inherit;
+    color: var(--ink-3);
+  }
+  [data-live] {
+    color: var(--hot);
+  }
+}
