@@ -1,5 +1,6 @@
 import { layoutNextLine, prepareWithSegments, type PreparedTextWithSegments } from "@chenglou/pretext"
 import { $ } from "../dom.ts"
+import { abortAll } from "../llm/ollama.ts"
 import { commitTurn, createLivePoster, stationOf, swapTo, turnEvents, visibleWindow } from "../net/turns.ts"
 import { centeredAt, type Point } from "../point.ts"
 import { LENSES, OPENING, type Station } from "../stations.ts"
@@ -7,28 +8,20 @@ import { wordsOf } from "../turn-rules.ts"
 import { createAttentionKnobs } from "./attention-knobs.ts"
 import { caretAt, isAhead, pointAt, type Caret, type TextMetrics } from "./caret.ts"
 import { simulatedSource } from "./completion.ts"
-import { createConnections } from "./connections.ts"
 import { makeDraggable } from "./drag.ts"
 import { createFutureKnobs } from "./future-knobs.ts"
 import { onPressAndHold } from "./hold.ts"
-import { createKeywordRelevance } from "./keyword-relevance.ts"
 import { layoutLines } from "./layout.ts"
-import { createLeftRail } from "./left-rail.ts"
 import { circleOf } from "./links.ts"
 import { liveAttention } from "./live-attention.ts"
 import { controlLine, liveSource } from "./live-completion.ts"
 import { liveDimension } from "./live-dimension.ts"
-import { liveInfluence } from "./live-influence.ts"
-import { bindModeToggle } from "./live-mode.ts"
 import { liveRealization } from "./live-realization.ts"
-import { liveRelevance } from "./live-relevance.ts"
 import { createPointer, type Aim, type PointerTarget, type SelectionPreview, type Zone } from "./pointer.ts"
 import { wordSpans, type Span } from "./segments.ts"
 import { simulatedAttention } from "./simulated-attention.ts"
 import { simulatedDimension } from "./simulated-dimension.ts"
-import { simulatedInfluence } from "./simulated-influence.ts"
 import { simulatedRealization } from "./simulated-realization.ts"
-import { simulatedRelevance } from "./simulated-relevance.ts"
 import { isSoundOn, setSoundOn, startSound, type Sound } from "./sound/engine.ts"
 import { sounds } from "./sound/sounds.ts"
 import { showStatus } from "./status-line.ts"
@@ -46,8 +39,6 @@ const MAX_RETRY_MS = 16000
 /** Double click and hold: the second press, if it starts within `DOUBLE_PRESS_MS` of the first and is held still, opens the fan menu after 100 ms plus this sweep (500 ms in all). */
 const HOLD_MS = 400
 const DOUBLE_PRESS_MS = 400
-/** Between the rail and the text column. */
-const RAIL_GAP_PX = 12
 /** Drag speed, in px per ms, at which the word tick is softest. */
 const DRAG_SPEED_FULL = 1.2
 /** Tray controls sit flush with each other and the screen's bottom edge, so their brackets are drawn just inside them. */
@@ -57,9 +48,7 @@ const element = $("#text")
 const handle = $<HTMLButtonElement>("#pointer")
 const statusElement = $("#status")
 const soundToggle = $<HTMLButtonElement>("#sound-toggle")
-const modeToggle = $<HTMLButtonElement>("#mode-toggle")
 const extraLink = $<HTMLAnchorElement>("#extra-link")
-const railElement = $("#rail")
 const turnElement = $<HTMLOutputElement>("#turn")
 const style = getComputedStyle(element)
 await document.fonts.load(style.font)
@@ -71,9 +60,6 @@ const isLive = new URLSearchParams(location.search).get("live") === "true"
 /** Without a station the editor runs alone from the opening, for development. */
 const station = stationOf(location.search)
 const stream = createTextStream(isLive ? liveSource : simulatedSource, render)
-const rail = createLeftRail(railElement)
-const connections = createConnections({ source: isLive ? liveInfluence : simulatedInfluence, onChange: refreshRail })
-const relevance = createKeywordRelevance(isLive ? liveRelevance : simulatedRelevance, refreshRail)
 const attention = createAttentionKnobs({
   source: isLive ? liveAttention : simulatedAttention,
   textElement: element,
@@ -82,11 +68,6 @@ const attention = createAttentionKnobs({
   activeLinkPath: $<SVGPathElement>("#attention-active-link"),
   isPastEnd: (point) => isAhead(caretAt(point, metricsOf()), caret),
   onChange: invalidateFuture,
-  onHover: (phrase) => {
-    connections.focusPhrase(phrase)
-    refreshRail()
-  },
-  onPaint: refreshRail,
 })
 const futureKnobs = createFutureKnobs({
   template: $<HTMLTemplateElement>("#future-knob"),
@@ -103,7 +84,6 @@ const futureKnobs = createFutureKnobs({
 let caret: Caret = { line: 0, x: 0 }
 let shownText = ""
 let story: StoryLayout = { content: "", text: "", combined: "", sentences: [] }
-let railFrame: number | undefined
 let shownCount: number | undefined
 /** Words shown where the knob last rested, or where a drag back last discarded the text past it. */
 let restCount = 0
@@ -128,7 +108,6 @@ let seededTurns: string | undefined
 let postLive: (tail: string, steering: string[]) => void = () => {}
 let isCommitting = false
 
-bindModeToggle(modeToggle, $<HTMLDialogElement>("#live-keys"), isLive)
 startSound()
 showSoundToggle()
 soundToggle.addEventListener("click", () => {
@@ -220,7 +199,7 @@ async function passTurn(station: Station) {
   if (isCommitting || seededTurns === undefined) return
   isCommitting = true
   turnElement.value = "passing…"
-  // shortcut: model requests keep running until the page swaps; harmless while they go to Cerebras, abort them first once they share pa.local through /ollama (README #4)
+  abortAll()
   const result = await commitTurn(station, tail())
   if (result !== "failed") return swapTo("view")
   isCommitting = false
@@ -286,7 +265,6 @@ function render() {
   scheduleTopUp()
   story = storyLayoutOf(lines, stream.text)
   if (element.textContent !== story.content) element.textContent = story.content
-  connections.update(story)
   shownText = text
   attention.update(text)
   futureKnobs.follow(story)
@@ -295,7 +273,6 @@ function render() {
 
 /** The text after the knob was steered by the previous boxes and future knobs, so it is regenerated once they settle. */
 function invalidateFuture() {
-  refreshRail()
   isFutureStale = true
   restartDwell()
   report()
@@ -401,21 +378,12 @@ function prepareWords() {
   return prepared.layout
 }
 
-/** What the pointer frames as the hand nears it: the main knob (labelled with its word count), each future knob, each attention box line by line (labelled with its relevance), and the tray's toggles and extra link. */
+/** What the pointer frames as the hand nears it: the main knob (labelled with its word count), each future knob, each attention box line by line, and the tray's toggle and extra link. */
 function pointerTargets(): PointerTarget[] {
-  const leads = attention.leads()
   return [
     { rects: [handle.getBoundingClientRect()], pad: 5, wake: handle, label: () => `<b>${shownCount ?? 0}</b> words` },
     ...[...document.querySelectorAll<HTMLElement>(".future")].map((knob) => ({ rects: [knob.getBoundingClientRect()], pad: 5 })),
-    ...attention.spans().map(({ phrase }, i) => ({
-      rects: clientRectsOf(phrase),
-      pad: 3,
-      label: () => {
-        const { relevance: value, isMeasuring } = relevance.relevanceOf(leads[i])
-        return isMeasuring ? "box <b>··</b>" : value === undefined ? "box" : `box <b>${value >= 1 ? "1.0" : value.toFixed(2).replace(/^0/, "")}</b>`
-      },
-    })),
-    { rects: [modeToggle.getBoundingClientRect()], pad: TRAY_PAD_PX, isHotOnHover: true, wake: modeToggle },
+    ...attention.spans().map(({ phrase }) => ({ rects: clientRectsOf(phrase), pad: 3, label: () => "box" })),
     { rects: [soundToggle.getBoundingClientRect()], pad: TRAY_PAD_PX, isHotOnHover: true, wake: soundToggle },
     { rects: [extraLink.getBoundingClientRect()], pad: TRAY_PAD_PX, isHotOnHover: true, wake: extraLink },
   ]
@@ -533,32 +501,6 @@ function caretAfterWords(count: number): Caret | undefined {
     seen += words
     cursor = next.end
   }
-}
-
-/** Redraws the rail beside the text once per frame, however many changes ask for it. */
-function refreshRail() {
-  railFrame ??= requestAnimationFrame(() => {
-    railFrame = undefined
-    const leads = attention.leads()
-    relevance.update(story, leads)
-    const { left, top } = element.getBoundingClientRect()
-    railElement.style.translate = `${left + scrollX - railElement.offsetWidth - RAIL_GAP_PX}px ${top + scrollY + parseFloat(style.paddingTop)}px`
-    rail.show({
-      lines: lineSpansOf(story.content),
-      boxes: attention.spans().map((spans, i) => ({ ...spans, ...relevance.relevanceOf(leads[i]) })),
-      connection: connections.current(),
-    })
-  })
-}
-
-/** Each line's span of the text, where lines are joined by single spaces. */
-function lineSpansOf(content: string): Span[] {
-  let start = 0
-  return content.split("\n").map((line) => {
-    const span = { start, end: start + line.length }
-    start = span.end + 1
-    return span
-  })
 }
 
 /** Ticks once per word the dragged knob reveals or removes; words arriving from the generator are silent. */

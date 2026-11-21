@@ -39,8 +39,6 @@
         --fade: 450ms;
         --pin: 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
         --dimmed: 0.3;
-        /* The ruler beside the column: one row per line, each this tall like the text. */
-        --rail-width: 144px;
         scrollbar-gutter: stable;
       }
       [data-dimmed] {
@@ -51,7 +49,7 @@
         padding-bottom: var(--tray-height);
       }
       #text {
-        width: clamp(30ch, 100% - 2 * (var(--margin) + var(--rail-width)), 64ch);
+        width: clamp(30ch, 100% - 2 * var(--margin), 64ch);
         margin-inline: auto;
         padding-block: var(--padding);
         white-space: pre;
@@ -63,131 +61,6 @@
         *::selection {
           background: var(--hot-wash);
           color: inherit;
-        }
-      }
-      /* Left rail: a ruler row per line with each box's bracket, its keyword's rank and relevance to the tip, and a meter of the line's connection to the focus. */
-      #rail {
-        position: absolute;
-        top: 0;
-        left: 0;
-        display: grid;
-        grid-auto-rows: var(--line);
-        align-content: start;
-        width: var(--rail-width);
-        font-size: var(--hud-size);
-        font-variant-numeric: tabular-nums;
-        pointer-events: none;
-        user-select: none;
-
-        .row {
-          display: grid;
-          grid-template-columns: 2ch 6px 5ch 1fr 10px;
-          column-gap: 6px;
-          align-items: center;
-        }
-        .num {
-          color: var(--ink-4);
-          font-size: var(--numeral-size);
-          text-align: end;
-        }
-        .kw {
-          display: flex;
-          justify-content: space-between;
-
-          i {
-            font-style: normal;
-            color: var(--ink-3);
-          }
-          b {
-            font-weight: inherit;
-          }
-          b[data-live] {
-            color: var(--hot);
-          }
-          .measuring {
-            color: var(--hot);
-            animation: pulse 0.8s ease-in-out infinite alternate;
-          }
-        }
-        .row[data-active] .kw :is(i, b) {
-          color: var(--hot);
-        }
-        /* Ten steps of strength, lit from the text outward. */
-        .meter {
-          position: relative;
-          display: flex;
-          flex-direction: row-reverse;
-          gap: 1px;
-          height: 7px;
-
-          i {
-            flex: 1;
-            background: var(--ink-5);
-            transition: background-color var(--fade) ease-out;
-          }
-          /* Gray while the meters follow the knob's text; brighter while a hovered box is the focus. */
-          i[data-on] {
-            background: var(--ink-3);
-          }
-          /* A segment turning on or off flashes orange, then fades to its new state: the diff, animated. */
-          i[data-gained],
-          i[data-lost] {
-            background: var(--hot);
-            transition: none;
-          }
-        }
-        &[data-focus="box"] .meter i[data-on]:not([data-gained], [data-lost]) {
-          background: var(--ink-2);
-        }
-        /* One unit per line against the text, every fifth longer; the spine thickens beside the focus. */
-        .tick {
-          position: relative;
-          height: 100%;
-          border-right: var(--hair) solid var(--ink-5);
-
-          &::after {
-            content: "";
-            position: absolute;
-            top: 50%;
-            right: 0;
-            width: 4px;
-            border-top: var(--hair) solid var(--ink-4);
-          }
-        }
-        .row[data-major] .tick::after {
-          width: 8px;
-          border-color: var(--ink-3);
-        }
-        .row[data-tip] .tick::after {
-          width: 8px;
-          border-top: var(--stroke) solid var(--ink);
-        }
-        .row[data-focus] .tick {
-          border-right: var(--stroke) solid var(--ink);
-        }
-        .brackets {
-          position: absolute;
-          inset: 0 auto 0 calc(2ch + 6px);
-          width: 6px;
-        }
-        .bracket {
-          position: absolute;
-          left: 0;
-          width: 4px;
-          border: var(--hair) solid var(--ink-3);
-          border-right: none;
-          transition: border-color var(--fast);
-
-          i {
-            position: absolute;
-            left: -3px;
-            width: 6px;
-            border-top: var(--stroke) solid var(--ink);
-          }
-          &[data-active],
-          &[data-active] i {
-            border-color: var(--hot);
-          }
         }
       }
       ::highlight(attention-word) {
@@ -585,9 +458,9 @@
       }
       #turn {
         padding-inline: var(--gap);
+        border-right: var(--hair) solid var(--ink-5);
         color: var(--ink);
       }
-      #mode-toggle,
       #sound-toggle,
       #extra-link {
         padding: 0 var(--gap);
@@ -610,84 +483,11 @@
           color: var(--ink);
         }
       }
-      #mode-toggle {
-        border-left: none;
-        border-right: var(--hair) solid var(--ink-5);
-
-        b {
-          width: 6ch;
-        }
-        &[aria-pressed="false"] b {
-          animation: blink 1s steps(1) infinite;
-        }
-      }
-      @keyframes blink {
-        50% {
-          color: var(--hot);
-        }
-      }
       #extra-link {
         text-decoration: none;
       }
       #sound-toggle[aria-pressed="false"] {
         color: var(--ink-4);
-      }
-      /* Asks for the API keys each time live mode is entered. */
-      #live-keys {
-        width: min(48ch, 100% - 2 * var(--padding));
-        padding: calc(2 * var(--gap));
-        border: var(--hair) solid var(--ink-3);
-        background: var(--bg);
-        color: var(--ink);
-
-        &:modal {
-          overscroll-behavior: contain;
-        }
-        &::backdrop {
-          background: rgb(0 0 0 / 0.7);
-          overflow: hidden;
-          overscroll-behavior: contain;
-        }
-        form {
-          display: grid;
-          gap: var(--gap);
-        }
-        h2,
-        p {
-          margin: 0;
-          font: inherit;
-        }
-        p {
-          color: var(--ink-2);
-        }
-        label {
-          display: grid;
-          grid-template-columns: 9ch 1fr;
-          align-items: center;
-        }
-        input,
-        button {
-          font: inherit;
-        }
-        /* Masked text rather than password fields, which password managers offer to save whatever autocomplete says. */
-        input {
-          -webkit-text-security: disc;
-          border: var(--hair) solid var(--ink-3);
-          &:focus {
-            border-color: var(--hot);
-            outline: none;
-          }
-        }
-        .actions {
-          display: flex;
-          justify-content: end;
-          gap: var(--gap);
-          button[value="live"] {
-            color: var(--bg);
-            background: var(--hot);
-            border: var(--hair) solid var(--hot);
-          }
-        }
       }
       /*
        * The page's pointer, for mice and pens (see src/text/pointer.ts): a crosshair at the hand, brackets on what it is near,
@@ -834,7 +634,6 @@
     </style>
   </head>
   <body>
-    <div id="rail" aria-hidden="true"></div>
     <div id="text"></div>
     <svg id="links" aria-hidden="true">
       <path id="attention-links" />
@@ -855,52 +654,10 @@
     <div id="cursor" aria-hidden="true"></div>
     <footer id="tray">
       <output id="turn" aria-live="polite" hidden>connecting…</output>
-      <button id="mode-toggle" type="button" aria-pressed="false" aria-label="flight mode">mode<b>sim</b></button>
       <output id="status" aria-live="off"></output>
       <button id="sound-toggle" type="button" aria-pressed="true" aria-label="sound">♪<b>on</b></button>
       <a id="extra-link" href="extra/style-1.html">extra</a>
     </footer>
-    <dialog id="live-keys" aria-labelledby="live-keys-title" aria-describedby="live-keys-note" closedby="closerequest">
-      <form method="dialog" autocomplete="off">
-        <h2 id="live-keys-title">launch</h2>
-        <p id="live-keys-note">Lift off from the simulator to call the real API with your own keys, kept in this browser's local storage.</p>
-        <label
-          >cerebras
-          <input
-            name="cerebras"
-            type="text"
-            required
-            autocomplete="off"
-            autocapitalize="off"
-            autocorrect="off"
-            spellcheck="false"
-            data-1p-ignore
-            data-lpignore="true"
-            data-bwignore
-            data-form-type="other"
-            autofocus
-        /></label>
-        <label
-          >gemini
-          <input
-            name="gemini"
-            type="text"
-            required
-            autocomplete="off"
-            autocapitalize="off"
-            autocorrect="off"
-            spellcheck="false"
-            data-1p-ignore
-            data-lpignore="true"
-            data-bwignore
-            data-form-type="other"
-        /></label>
-        <p class="actions">
-          <button type="button" command="close" commandfor="live-keys">abort</button>
-          <button value="live">launch</button>
-        </p>
-      </form>
-    </dialog>
     <script type="module" src="/src/text/main.ts"></script>
   </body>
 </html>

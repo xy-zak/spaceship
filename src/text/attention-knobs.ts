@@ -23,10 +23,6 @@ type AttentionKnobsOptions = {
   isPastEnd: (point: Point) => boolean
   /** Called when the user changes the boxes or the text drops some; may fire in quick succession while dragging. Not called by `expand`, which the caller can await. */
   onChange: () => void
-  /** Called with the text span of the box under the pointer (or being dragged) whenever it changes, or with undefined once there is none. */
-  onHover: (phrase: Span | undefined) => void
-  /** Called after the boxes are repainted, including while `expand` adds them. */
-  onPaint?: () => void
 }
 
 /**
@@ -34,7 +30,7 @@ type AttentionKnobsOptions = {
  * Dragging a box moves its keyword to the word under the pointer; double clicking a box deletes it.
  * `text` must equal the element's text with line breaks as spaces, so offsets match the DOM text, which may be split across child elements.
  */
-export function createAttentionKnobs({ source, textElement, knob, linkPath, activeLinkPath, isPastEnd, onChange, onHover, onPaint }: AttentionKnobsOptions) {
+export function createAttentionKnobs({ source, textElement, knob, linkPath, activeLinkPath, isPastEnd, onChange }: AttentionKnobsOptions) {
   const lineHeight = parseFloat(getComputedStyle(textElement).lineHeight)
   /** Later boxes are on top, so they are grabbed first. */
   let boxes: AttentionBox[] = []
@@ -219,9 +215,6 @@ export function createAttentionKnobs({ source, textElement, knob, linkPath, acti
       active = box
       paintFocus()
     }
-    if (!box) return onHover(undefined)
-    const [first, last] = spanOf(box, words.length)
-    onHover({ start: words[first].start, end: words[last].end })
   }
 
   /** Index of the topmost box containing `point` (-1 if none), treating the full line height as part of the box so lines leave no gaps. */
@@ -242,7 +235,6 @@ export function createAttentionKnobs({ source, textElement, knob, linkPath, acti
       CSS.highlights.set(`attention-shade-${level}`, new Highlight(...ranges))
     }
     paintFocus()
-    onPaint?.()
   }
 
   /** Underlines each keyword and links it to the knob, the active box's apart from the others. */

@@ -159,6 +159,5 @@ Already in agreement, no change needed:
 - Raspberry Pi OS Chromium reads `/etc/chromium/policies/managed/`, `isSecureContext` is true, and `getPorts()` returns the board without a prompt.
 - The `setSignals` reset on real CP2102 and CH340 boards: boot timing, and whether the bridges hold bytes while the port is closed.
 - `pa.local` resolves in Chromium on the Pis.
-- Ollama's Origin rule, and whether an aborted browser request stops generation (curl checks in `server.md` §10).
 - How well gpt-oss:20b handles the prompts and fills the slots.
 - Pi 4 render speed with a 5,000-word manifesto.

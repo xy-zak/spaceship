@@ -31,5 +31,5 @@
 
 ## Prototyping with the LLM
 
-1. `.env` holds `CEREBRAS_DEV_API_KEY` for prototyping ideas and engineering prompts from scripts. Never print it, commit it, or ship it to the browser; the app itself reads the user's key from localStorage.
+1. `.env` holds `CEREBRAS_DEV_API_KEY` for prototyping ideas and engineering prompts from scripts. Never print it, commit it, or ship it to the browser; the app itself calls Ollama through pA's `/ollama` proxy and needs no key.
 2. Every call made with that key must track its token usage. Call the API through `chat` in `scripts/cerebras-dev.mjs`, which keeps `token-usage.log` as readable text: the accumulated totals at the top (rewritten on every call) and one appended row per call below (time, script, prompt, cached, completion, reasoning and total tokens). The log is git-ignored.

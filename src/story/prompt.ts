@@ -15,5 +15,5 @@ it was not the one on her phone. Mara lay still and listened.`
 export const STORY_REQUEST = {
   system: STORY_SYSTEM_PROMPT,
   temperature: 0.9,
-  maxCompletionTokens: 2000,
+  maxTokens: 2000,
 }
