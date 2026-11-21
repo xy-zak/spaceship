@@ -12,50 +12,37 @@ function replyWith(replies, requests = []) {
 }
 
 const plan = (argument, offered = []) =>
-  Array.fromAsync(
-    planPassage({
-      station: "B",
-      argument,
-      offered,
-      prefix: "Design education must",
-      steering: "",
-      controls: [],
-      move: "define",
-      signal: new AbortController().signal,
-    }),
-  )
+  planPassage({
+    station: "B",
+    argument,
+    offered,
+    prefix: "Design education must",
+    steering: "",
+    controls: [],
+    move: "define",
+    signal: new AbortController().signal,
+  })
 
-test("candidates are read with their outlines, whatever their labels look like, and sent with the thesis, the argument and the lens's sources", async () => {
+test("the claim is read with its outline, whatever its labels look like, and sent with the thesis, the argument and the lens's sources", async () => {
   const reply = [
-    "Here are three claims:",
-    "SOURCE: 2",
-    "**CLAIM:** Every studio must publish its budget to the students who pay for it.",
-    "**BECAUSE:** costs hide",
-    "FOR INSTANCE: the material fund",
-    "SO: students choose studios knowingly",
+    "Here is the claim:",
+    "**Source:** 2",
+    "1. **CLAIM:** Every studio must publish its budget to the students who pay for it.",
+    "costs hide",
+    "**FOR INSTANCE:** the material fund",
+    "So: students choose studios knowingly",
     "",
-    "**Source:** 4",
-    "2. CLAIM: Tutors must be paid for the hours they spend on crits.",
-    "crits run on goodwill",
-    "Because: an unpaid crit is short",
-    "",
-    "CLAIM: A brief must name who pays for its materials.",
-    "SO: the cost moves to the school",
-    "CLAIM: A fourth claim that nobody asked for at all.",
+    "CLAIM: A second claim that nobody asked for at all.",
   ].join("\n")
   const requests = replyWith([reply])
-  assert.deepEqual(await plan(["thesis: Design education must answer to its students.", "diagnose: Studios hide their costs."]), [
-    {
-      claim: "Every studio must publish its budget to the students who pay for it.",
-      points: [
-        { label: "because", text: "costs hide" },
-        { label: "for instance", text: "the material fund" },
-        { label: "so", text: "students choose studios knowingly" },
-      ],
-    },
-    { claim: "Tutors must be paid for the hours they spend on crits.", points: [{ label: "because", text: "crits run on goodwill" }] },
-    { claim: "A brief must name who pays for its materials.", points: [{ label: "so", text: "the cost moves to the school" }] },
-  ])
+  assert.deepEqual(await plan(["thesis: Design education must answer to its students.", "diagnose: Studios hide their costs."]), {
+    claim: "Every studio must publish its budget to the students who pay for it.",
+    points: [
+      { label: "because", text: "costs hide" },
+      { label: "for instance", text: "the material fund" },
+      { label: "so", text: "students choose studios knowingly" },
+    ],
+  })
   const [{ messages }] = requests
   assert.match(
     messages[0].content,
@@ -65,29 +52,31 @@ test("candidates are read with their outlines, whatever their labels look like, 
   assert.match(messages[1].content, /\n\nMOVE\ndefine: what a key word/)
 })
 
-test("candidates that repeat the argument, an offered claim or each other are dropped; with none left, the planner is asked once more", async () => {
+test("claims that repeat the argument or an offered claim are dropped; with none left, the planner is asked once more", async () => {
   const argument = ["thesis: Design education must answer to its students."]
   const requests = replyWith([
     "CLAIM: Design education must answer to its students, always.\nCLAIM: Tutors must be paid for every crit they run.",
     "CLAIM: Pay tutors.",
   ])
-  assert.deepEqual(await plan(argument, ["Tutors must be paid for every crit, whatever it costs."]), [])
+  assert.equal(await plan(argument, ["Tutors must be paid for every crit, whatever it costs."]), undefined)
   assert.equal(requests.length, 2)
   assert.match(requests[0].messages[1].content, /\n\nOFFERED BEFORE\n- Tutors must be paid/)
-  assert.match(requests[1].messages[1].content, /repeated the argument\. Write new ones\.$/)
+  assert.match(requests[1].messages[1].content, /repeated the argument\. Write a new one\.$/)
   replyWith([
     "Tutors must be paid for the hours they spend on crits.\nunpaid crits run short\nCLAIM: Tutors must be paid for the hours of every crit.\nBECAUSE: crits are work",
   ])
-  assert.deepEqual(await plan(argument), [
-    { claim: "Tutors must be paid for the hours they spend on crits.", points: [{ label: "because", text: "unpaid crits run short" }] },
-  ])
+  assert.deepEqual(await plan(argument), {
+    claim: "Tutors must be paid for the hours they spend on crits.",
+    points: [{ label: "because", text: "unpaid crits run short" }],
+  })
 })
 
 test("claims lose their contrasts, as the writer's text does", async () => {
   replyWith(["CLAIM: Design education must teach students to design for systems, not just objects.\nBECAUSE: a crit is not a verdict; it is a rehearsal"])
-  assert.deepEqual(await plan([]), [
-    { claim: "Design education must teach students to design for systems.", points: [{ label: "because", text: "a crit is a rehearsal" }] },
-  ])
+  assert.deepEqual(await plan([]), {
+    claim: "Design education must teach students to design for systems.",
+    points: [{ label: "because", text: "a crit is a rehearsal" }],
+  })
 })
 
 test("a plan argues from the lens's sources, one per theme, the move's kinds and the plan's first, on the side the knob on DAE picks", () => {

@@ -1,5 +1,4 @@
 import type { Point } from "../point.ts"
-import { MOVES } from "../prompts/plan.ts"
 import type { PlanView } from "./live-completion.ts"
 import type { RealizationSource } from "./realization.ts"
 import { createRealizationTracker, type Tracking } from "./realization-tracker.ts"
@@ -12,11 +11,10 @@ const MADE_CONFIDENCE = 0.8
 type OutlinePoint = { control: string; item: HTMLLIElement; dot: HTMLElement; tracking?: Tracking }
 
 /**
- * The card under the main knob, in `card`'s `<p>` and `<ol>`: the passage's move, its place among the planned candidates, the claim the text past the knob argues and the claim's outline.
+ * The card under the main knob, in `card`'s `<ol>`: the claim the text past the knob argues and its outline, a box each.
  * Each point, the claim first, fills as surely as a sentence of the passage shown so far makes it, scored like a future knob's control.
  */
 export function createPlanCard(card: HTMLElement, realization: RealizationSource) {
-  const heading = card.querySelector("p")!
   const list = card.querySelector("ol")!
   const tracker = createRealizationTracker(realization, () => story && follow(story, startWords))
   let points: OutlinePoint[] = []
@@ -27,10 +25,8 @@ export function createPlanCard(card: HTMLElement, realization: RealizationSource
   return { show, follow, placeAt }
 
   function show(plan: PlanView | undefined) {
-    card.hidden = !plan?.count
-    if (!plan?.count) return clearPoints()
-    const count = Object.assign(document.createElement("span"), { textContent: `${plan.index + 1}/${plan.count}` })
-    heading.replaceChildren(Object.assign(document.createElement("b"), { textContent: plan.move }), ` ${MOVES[plan.move] ?? ""}`, count)
+    card.hidden = !plan || (plan.isDone && !plan.candidate)
+    if (card.hidden || !plan) return clearPoints()
     const claim = plan.candidate?.claim
     if (claim === shownClaim && list.childElementCount) return
     clearPoints()

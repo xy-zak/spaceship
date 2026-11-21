@@ -46,7 +46,8 @@
       }
       body {
         margin: 0;
-        padding-bottom: var(--tray-height);
+        /* room to scroll the knob's line to the middle, with the plan under it */
+        padding-bottom: calc(50vh + var(--tray-height));
       }
       #text {
         width: clamp(30ch, 100% - 2 * var(--margin), 90ch);
@@ -63,6 +64,130 @@
           color: inherit;
         }
       }
+      /*
+       * The turn's steps, always open and never gating: the current one is marked and shows what to do.
+       * Optional steps have a dashed rule and are skipped by going on to a later step.
+       */
+      #steps {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        transition: opacity var(--settle);
+        border-bottom: var(--hair) solid var(--ink-5);
+        background: var(--bg);
+        color: var(--ink-3);
+
+        /* as wide as the text column, so in the text's font size; the current step's hint gets the line under the steps */
+        ol {
+          position: relative;
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: var(--gap);
+          width: clamp(30ch, 100% - 2 * var(--margin), 90ch);
+          margin: 0 auto;
+          padding: var(--gap) 0 calc(var(--hud-line) + 1.5 * var(--gap));
+          list-style: none;
+          counter-reset: step;
+        }
+        li {
+          counter-increment: step;
+          font-size: var(--hud-size);
+          line-height: var(--hud-line);
+          padding-top: var(--gap);
+          border-top: var(--stroke) solid var(--ink-5);
+
+          &:has(small) {
+            border-top-style: dashed;
+          }
+          &::before {
+            content: counter(step) " ";
+          }
+          b {
+            font-weight: inherit;
+            color: var(--ink-2);
+          }
+          small {
+            font-size: inherit;
+            color: var(--ink-4);
+          }
+          span {
+            display: none;
+          }
+          &[data-state="current"] {
+            border-top-color: var(--hot);
+            color: var(--ink);
+
+            b {
+              color: var(--hot);
+            }
+            span {
+              display: block;
+              position: absolute;
+              inset: auto 0 var(--gap);
+            }
+          }
+          &[data-state="done"] {
+            border-top-color: var(--ink-2);
+
+            small {
+              display: none;
+            }
+            &::after {
+              content: " ✓";
+            }
+          }
+          &[data-state="skipped"],
+          &[data-state="unavailable"] {
+            opacity: var(--dimmed);
+
+            small {
+              display: none;
+            }
+          }
+          &[data-state="skipped"]::after {
+            content: " skipped";
+          }
+          &[data-state="unavailable"]::after {
+            content: " no text yet";
+          }
+        }
+      }
+      /*
+       * While one thing has the reader's attention, the rest fades: a knob choosing its route (the knob and its menu stay),
+       * words being selected (the text and its boxes stay), or the plan being chosen (the plan and the steps stay).
+       */
+      :is(#argument, #text, #plan, #links > *) {
+        transition: opacity var(--settle);
+      }
+      body[data-focus="choosing"]
+        :is(
+          #steps,
+          #argument,
+          #text,
+          #plan,
+          #author-brackets,
+          #attention-links,
+          #attention-active-link,
+          #future-links,
+          #bookmarks,
+          .knob:is(#pointer, [data-tuned])
+        ),
+      body[data-focus="selecting"] :is(#steps, #argument, #plan, #future-hud, #future-links, #future-tuned-link, #bookmarks, .knob),
+      body[data-focus="plan"]
+        :is(
+          #argument,
+          #text,
+          #author-brackets,
+          #attention-links,
+          #attention-active-link,
+          #future-hud,
+          #future-links,
+          #future-tuned-link,
+          #bookmarks,
+          .knob.future
+        ) {
+        opacity: var(--dimmed);
+      }
       /* The argument above the text: the thesis and the last claims. */
       #argument {
         box-sizing: border-box;
@@ -72,7 +197,7 @@
         font-size: var(--hud-size);
         line-height: var(--hud-line);
       }
-      /* The plan card under the main knob: the move, the claim the hidden text argues and its outline, each point filling as the shown text makes it. */
+      /* The plan card under the main knob: a box each for the claim the hidden text argues and its outline, each filling as the shown text makes it. */
       #plan {
         position: absolute;
         top: 0;
@@ -84,35 +209,24 @@
         line-height: var(--hud-line);
         color: var(--ink-2);
 
-        p {
-          display: flex;
-          gap: var(--gap);
-          margin: 0 0 var(--gap);
-          color: var(--ink-3);
-
-          b {
-            font-weight: inherit;
-            color: var(--ink);
-          }
-          span {
-            margin-left: auto;
-          }
-        }
         ol {
           display: grid;
-          gap: 2px;
+          grid-template-columns: repeat(auto-fit, minmax(20ch, 1fr));
+          gap: var(--gap);
           margin: 0;
           padding: 0;
           list-style: none;
         }
         li {
           position: relative;
-          padding-left: calc(var(--knob-future) + var(--gap));
+          padding: var(--gap) var(--gap) var(--gap) calc(var(--knob-future) + 2 * var(--gap));
+          border: var(--hair) solid var(--ink-5);
+          background: var(--bg);
 
           > span {
             position: absolute;
-            top: calc((var(--hud-line) - var(--knob-future)) / 2);
-            left: 0;
+            top: calc(var(--gap) + (var(--hud-line) - var(--knob-future)) / 2);
+            left: var(--gap);
             box-sizing: border-box;
             width: var(--knob-future);
             height: var(--knob-future);
@@ -122,11 +236,15 @@
             transition: --fill var(--settle);
           }
           b {
+            display: block;
             font-weight: inherit;
             color: var(--ink-3);
           }
           &:first-child {
             color: var(--ink);
+          }
+          &[data-made] {
+            border-color: var(--hot);
           }
           &[data-made] > span {
             border-style: solid;
@@ -138,7 +256,8 @@
             color: var(--hot);
           }
           &.planning {
-            padding-left: 0;
+            grid-column: 1 / -1;
+            padding-left: var(--gap);
           }
         }
       }
@@ -158,8 +277,10 @@
       ::highlight(attention-shade-5) {
         background: var(--attention);
       }
+      /* above the step bar, so a knob's menu near the top stays whole */
       #links {
         position: absolute;
+        z-index: 3;
         top: 0;
         left: 0;
         width: 100%;
@@ -254,6 +375,7 @@
       .knob {
         --size: var(--knob);
         position: absolute;
+        z-index: 3;
         top: 0;
         left: 0;
         width: var(--size);
@@ -711,10 +833,19 @@
     </style>
   </head>
   <body>
+    <nav id="steps" aria-label="this turn, step by step">
+      <ol>
+        <li data-step="routes">
+          <b>Routes &amp; tones</b> <small>optional</small><span>Shift-drag the knob to steer, double-click words to weigh them, Enter for the plan</span>
+        </li>
+        <li data-step="terms"><b>Weighted terms</b> <small>optional</small></li>
+        <li data-step="plan"><b>Plan</b><span>Press r for another plan, Enter to write it</span></li>
+        <li data-step="write"><b>Write</b><span>Drag the knob to read it, r to write it again, Enter to finish the turn</span></li>
+      </ol>
+    </nav>
     <ol id="argument" aria-label="the argument so far" hidden></ol>
     <div id="text"></div>
     <section id="plan" aria-label="the plan for the text past the knob" hidden>
-      <p></p>
       <ol></ol>
     </section>
     <svg id="links" aria-hidden="true">

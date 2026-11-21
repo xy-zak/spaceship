@@ -67,14 +67,14 @@
   - Each file holds its rules as arrays, one rule per entry (`bulleted` in `format.ts` writes them as "- " lines), its example, its request settings and how much of the manifesto it shows.
   - A prompt that fixes an output format names the parser that reads it.
 - **`live-completion.ts`:** `liveSourceFor(station, turns, onPlan)` gives each editor the source for its lens. Each continuation writes a planned claim.
-  - **Plan, then write.** `live-plan.ts` asks for `CANDIDATES` (3) claims for the passage's move, each with an outline: `because`, `for instance`, `so`. Each candidate is used as soon as it is complete; the rest arrive in the background. One plan is made per steering, and only the latest steering's plan runs.
+  - **Plan, then write.** `live-plan.ts` asks for one claim for the passage's move, with an outline: `because`, `for instance`, `so`. One plan is made per steering, by `prepare` when the turn reaches its plan, and only the latest steering's plan runs.
     - **Move:** the thesis first, then `ARC` in turn: diagnose, define, example, objection, consequence, demand, call. A `move` control (it replaced `form` in the catalog) overrides the arc.
-    - **What the planner sees:** the thesis, the argument so far (every turn's claim), the claims a reroll passed over, the steering, the manifesto's last 80 words, and `SOURCES` (6) bank entries.
+    - **What the planner sees:** the thesis, the argument so far (every turn's claim), the claims a reroll dropped, the steering, the manifesto's last 80 words, and `SOURCES` (6) bank entries.
     - **Sources:** `sourcesFor` takes the lens's entries, one per theme, favouring the kinds that suit the move (`KINDS_FOR`) and the Institutional Plan, and otherwise picks at random. The planner names the source each claim argues from (`SOURCE:`, which the parser skips); without that line qwen ignored the sources.
     - **The knob on DAE:** the menu always offers `toward DAE` (supportive | critical) first. Supportive shows the planner each source's case for, critical its case against; midway, slight or absent, both.
-    - **Parsing:** labels may be bolded or missing (an unlabelled line is the next part the candidate lacks). Claims lose their contrasts, as the text does. Candidates that repeat the argument, an offered claim or each other are dropped; with none left the planner is asked once more.
+    - **Parsing:** labels may be bolded or missing (an unlabelled line is the next part the claim lacks). Claims lose their contrasts, as the text does. A claim that repeats the argument or an offered claim is dropped; with none left the planner is asked once more.
     - **Write step:** the claim and its outline go in the user message as `CLAIM TO MAKE` and `OUTLINE`, and the manifesto is cut to its last 300 words.
-  - **Reroll** (`r` on the keyboard, standing in for the panel's button) steps to the next candidate and rewrites the text past the knob for it. Past the last, it asks for new claims that avoid the ones offered. The place reached is kept when the steering changes.
+  - **Reroll** (`r` on the keyboard, standing in for the panel's button): in the plan it drops the claim and plans a new one, which avoids every claim dropped before; while writing it writes the text past the knob again.
   - **Commit and live:** the editor sends the claim as `"move: claim"` in `/api/commit` and `/api/live`; the server stores it on the turn.
   - The manifesto block stays **after** the key phrases and controls. Putting it first would let Ollama reuse its cached prefix when only the steering changes, but on qwen3-vl:8b it broke more sentences (1 of 3 joined) and ignored strong controls (1 of 3 followed).
   - The example is about bus timetables, because qwen copied a design-education example into the manifesto, even reworded.
@@ -84,9 +84,16 @@
   3. `withoutCopies` drops sentences the manifesto or the example already has, and restarts of the last sentence, then ends a stream that keeps copying.
   4. `withFullStop` closes the manifesto's sentence when the model starts a new one.
   5. `inParagraphs` holds paragraphs to three to six sentences.
+- **The turn in steps.** Enter moves each turn through three phases, shown by the step bar (`steps.ts`, `#steps` at the top: 1 routes & tones, 2 weighted terms, 3 plan, 4 write).
+  - **Steer:** routes and terms are set together, both optional (dashed rule); terms read "no text yet" on the first turn. Nothing is planned or written, so knob menus and suggested boxes have the model to themselves.
+  - **Enter, plan:** `prepare` plans the claim for the steering as it is; `r` plans another, and a steering change re-plans.
+  - **Enter, write:** the planned claim is written past the knob, to be read by dragging it; `r` writes it again.
+  - **Enter, next turn:** a station passes its turn; without a station the steps start again after the text shown.
+  - While one thing has the reader's attention the rest fades (`data-focus` on the body): a knob choosing its route, words being selected, or the plan being chosen.
 - **The plan on screen.**
-  - `plan-card.ts` puts a card under the main knob: the move, the candidate's place (1/3), the claim the hidden text argues, and its outline.
+  - `plan-card.ts` puts a card under the main knob: the move, then a box each for the claim the hidden text argues and its outline.
   - Each point fills as surely as a revealed sentence makes it. The realization tracker scores the point as a control (`realizedBeforeKnob`), and a point is made at 0.8.
+  - Whenever the knob moves, the page scrolls its line to the middle of the window, so the card has room below; mid-drag it waits for the drop, as scrolling would move the text under the pointer. The knob sits 4 px right of the caret, so it never covers the last word.
   - `argument.ts` lists the argument's claims: in the editor above the text (the thesis and the last two), and in the view beside the manifesto, the live claim in peach.
 - `data/evaluations/` (git-ignored) holds the nine-turn B-C-D sessions these were measured on.
 - **`live-attention.ts`, `live-dimension.ts`:** new prompts; use `streamCompletion` from `llm/ollama.ts`; remove the API-key checks.
@@ -226,7 +233,7 @@ export function phraseAround(words: Span[], text: string, index: number): Attent
 | `box`                | `toggleAttention()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `reroll`             | `regenerateFuture()`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `value` / `strength` | `channels: Map<number, { value; strength }>`, with value unknown until first heard and strength 0 on every page load. A `value` line stores the position, and is a touch only if the position was already known (so the boot dump is not). A `strength` line is always a touch. A touch on a channel with no unpinned knob first restarts its strength at 0.1; a `strength` line then adds `0.04 × steps`, clamped to 0–1. After a touch, `futureKnobs.steer(ch, (value ?? 500) / 1000, strength)`. |
-| `ok`                 | if `isCommitting`, return. Otherwise set `isCommitting`, show "passing…", abort all model requests, then `commitTurn`. On `done` or `refused`, `swapTo("view")`. On `failed`, clear `isCommitting` and show "not sent, hold OK again".                                                                                                                                                                                                                                                              |
+| `ok`                 | `advance()`: from steering to the plan, from the plan to writing. While writing: if `isCommitting`, return. Otherwise set `isCommitting`, show "passing…", abort all model requests, then `commitTurn`. On `done` or `refused`, `swapTo("view")`. On `failed`, clear `isCommitting` and show "not sent, hold OK again".                                                                                                                                                                             |
 
 **Editor startup**
 

@@ -27,7 +27,7 @@ type AttentionKnobsOptions = {
 
 /**
  * Attention knobs are shaded boxes of words: generated around keywords by expanding, or made from a text selection.
- * Dragging a box moves its keyword to the word under the pointer; double clicking a box deletes it.
+ * Dragging a box moves its keyword to the word under the pointer; double clicking a word boxes it, and double clicking a box deletes it.
  * `text` must equal the element's text with line breaks as spaces, so offsets match the DOM text, which may be split across child elements.
  */
 export function createAttentionKnobs({ source, textElement, knob, linkPath, activeLinkPath, isPastEnd, onChange }: AttentionKnobsOptions) {
@@ -44,9 +44,12 @@ export function createAttentionKnobs({ source, textElement, knob, linkPath, acti
   let shown: AttentionGeneration | undefined
   /** The pointer's latest page x over the text, where box sounds come from. */
   let pointerX = 0
+  /** The box the latest selection made, which the double click that selected its word keeps. */
+  let selected: AttentionBox | undefined
 
   makeDraggable(textElement, { onStart: grab, onDrag: moveGrabbed, onDrop: dropGrabbed })
   textElement.addEventListener("mousedown", (event) => {
+    selected = undefined
     if (boxAt(pointOf(event)) !== -1) event.preventDefault()
   })
   textElement.addEventListener("pointermove", (event) => {
@@ -57,7 +60,9 @@ export function createAttentionKnobs({ source, textElement, knob, linkPath, acti
   })
   textElement.addEventListener("pointerleave", () => hover(grabbed))
   textElement.addEventListener("dblclick", (event) => {
-    if (deleteBox(boxAt(pointOf(event)))) sounds.remove(event.pageX)
+    const index = boxAt(pointOf(event))
+    if (index !== -1 && boxes[index] === selected) return
+    if (deleteBox(index)) sounds.remove(event.pageX)
   })
   document.addEventListener("pointerup", boxSelection)
 
@@ -163,7 +168,8 @@ export function createAttentionKnobs({ source, textElement, knob, linkPath, acti
 
     const keyword = Math.floor((first + last) / 2)
     selection.removeAllRanges()
-    addBox({ keyword, before: keyword - first, after: last - keyword })
+    selected = { keyword, before: keyword - first, after: last - keyword }
+    addBox(selected)
     sounds.boxCreate(pageX)
     onChange()
   }

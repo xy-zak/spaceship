@@ -1,6 +1,6 @@
 import { linesOf, streamCompletion } from "../llm/ollama.ts"
 import { BANK, type Entry } from "../prompts/bank.ts"
-import { ARC, CANDIDATES, KINDS_FOR, OUTLINE, REQUEST, SOURCES, systemOf, userOf, type Candidate, type Side } from "../prompts/plan.ts"
+import { ARC, KINDS_FOR, OUTLINE, REQUEST, SOURCES, systemOf, userOf, type Candidate, type Side } from "../prompts/plan.ts"
 import type { Station } from "../stations.ts"
 import { gradeIndexOf, strengthLevelOf, valueOf, type Control } from "./dimension.ts"
 import { plainClaims } from "./manifesto-filters.ts"
@@ -42,11 +42,11 @@ export function sourcesFor(station: Station | undefined, move: string, controls:
 }
 
 /**
- * Streams up to `CANDIDATES` claims for the passage's `move`, each with its outline, as soon as each is complete. `argument` is the claims so far as "move: claim", the thesis first.
- * A candidate that repeats one of them, one `offered` before or an earlier candidate is dropped; if none is left, asks once more. Rejects if a request fails or `signal` aborts.
+ * Plans one claim for the passage's `move`, with its outline. `argument` is the claims so far as "move: claim", the thesis first.
+ * A claim that repeats one of them or one `offered` before is dropped; if none is left, asks once more, then gives up with undefined. Rejects if a request fails or `signal` aborts.
  * `controls` pick the side of the bank's sources it argues, as in `sourcesFor`.
  */
-export async function* planPassage({
+export async function planPassage({
   station,
   argument,
   offered,
@@ -70,16 +70,9 @@ export async function* planPassage({
   const taken = [...argument.map((claim) => claim.replace(/^\w+: /, "")), ...offered].map(openingOf)
   let user = userOf({ argument, offered, prefix, steering, move })
   for (let attempt = 0; attempt < 2; attempt++) {
-    let count = 0
-    for await (const candidate of candidatesOf(linesOf(streamCompletion({ ...REQUEST, system, user, signal })))) {
-      const opening = openingOf(candidate.claim)
-      if (taken.includes(opening)) continue
-      taken.push(opening)
-      yield candidate
-      if (++count === CANDIDATES) return
-    }
-    if (count) return
-    user += "\n\nThose claims were missing or repeated the argument. Write new ones."
+    for await (const candidate of candidatesOf(linesOf(streamCompletion({ ...REQUEST, system, user, signal }))))
+      if (!taken.includes(openingOf(candidate.claim))) return candidate
+    user += "\n\nThat claim was missing or repeated the argument. Write a new one."
   }
 }
 

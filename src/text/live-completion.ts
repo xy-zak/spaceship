@@ -1,33 +1,39 @@
 import { streamCompletion } from "../llm/ollama.ts"
 import { REQUEST, steeringBlocks, systemFor, userMessage } from "../prompts/manifesto.ts"
-import { CANDIDATES, type Candidate } from "../prompts/plan.ts"
+import type { Candidate } from "../prompts/plan.ts"
 import { LENSES, type Station } from "../stations.ts"
 import type { Turn } from "../turn-rules.ts"
 import { moveOf, planPassage } from "./live-plan.ts"
 import { filtered } from "./manifesto-filters.ts"
 import type { Steering } from "./text-stream.ts"
 
-/** The claims planned for one steering: its move and the candidates offered so far, all of them once `isDone`. `waiters` wake on every change. */
-type Plan = { move: string; candidates: Candidate[]; isDone: boolean; controller: AbortController; waiters: Set<() => void> }
+/** The claim planned for one steering, with its move; undefined if the planner offered none. `waiters` wake once it `isDone`. */
+type Plan = { move: string; candidate?: Candidate; isDone: boolean; controller: AbortController; waiters: Set<() => void> }
 
-/** What the plan card shows: the move, the candidate the next continuation writes (undefined while it is planned), its place among the candidates and how many there are. */
-export type PlanView = { move: string; candidate?: Candidate; index: number; count: number }
+/** What the plan card shows: the move and the claim the next continuation writes, undefined while it is planned (`isDone` false) or if none came. */
+export type PlanView = { move: string; candidate?: Candidate; isDone: boolean }
 
 /**
  * Each station's editor gets the source for its own lens; without a station the prompt has none. `turns` gives the manifesto's turns, whose claims are the argument so far.
- * Each continuation writes a planned claim and its outline. One plan per steering offers `CANDIDATES` of them; `reroll` steps to the next, and past the last asks for new ones.
- * The place reroll reached is kept when the steering changes. `onPlan` is called whenever `plan()` changes; `claim()` is the one behind the latest continuation, which the commit stores with the turn.
+ * Each continuation writes a planned claim and its outline, planned once per steering, by `prepare` ahead of writing or else by the continuation itself; `reroll` drops it, so the next plans another.
+ * `onPlan` is called whenever `plan()` changes; `claim()` is the one behind the latest continuation, which the commit stores with the turn.
  */
 export function liveSourceFor(station?: Station, turns: () => Turn[] = () => [], onPlan: () => void = () => {}) {
   const plans = new Map<string, Plan>()
-  /** Claims passed over by rerolling past the last candidate, so new plans offer others. */
+  /** Claims a reroll dropped, so new plans offer others. */
   const offered: string[] = []
   /** The steering of the latest continuation, as the prompts write it. */
   let key = ""
-  let index = 0
   let written: string | undefined
 
-  return { complete, reroll, plan, claim: () => written }
+  return { complete, prepare, reroll, plan, claim: () => written }
+
+  /** Plans the claim for `steering` without writing, unless it is planned already; the next continuation with the same steering writes it. */
+  function prepare(prefix: string, steering: Steering) {
+    key = steeringBlocks(steering)
+    if (!plans.has(key)) startPlan(prefix, steering)
+    onPlan()
+  }
 
   async function* complete(prefix: string, steering: Steering, words: number, signal: AbortSignal) {
     key = steeringBlocks(steering)
@@ -42,31 +48,24 @@ export function liveSourceFor(station?: Station, turns: () => Turn[] = () => [],
     yield* filtered(prefix, streamCompletion({ ...REQUEST, system, user: userMessage(prefix, steering, candidate), signal }))
   }
 
-  /** Steps to the next candidate; past the last, drops the plan, so the next continuation plans claims other than these. */
+  /** Drops the plan, so the next continuation plans a claim other than this one and those dropped before. */
   function reroll() {
     const plan = plans.get(key)
     if (!plan) return
-    if (index + 1 < (plan.isDone ? plan.candidates.length : CANDIDATES)) index++
-    else {
-      offered.push(...plan.candidates.map(({ claim }) => claim))
-      plan.controller.abort()
-      plans.delete(key)
-      index = 0
-    }
+    if (plan.candidate) offered.push(plan.candidate.claim)
+    plan.controller.abort()
+    plans.delete(key)
     onPlan()
   }
 
   function plan(): PlanView | undefined {
     const plan = plans.get(key)
-    if (!plan) return
-    const count = plan.isDone ? plan.candidates.length : CANDIDATES
-    const shown = Math.min(index, count - 1)
-    return { move: plan.move, candidate: plan.candidates[shown], index: shown, count }
+    return plan && { move: plan.move, candidate: plan.candidate, isDone: plan.isDone }
   }
 
   /**
    * Plans apart from any one continuation, so one cut short leaves its plan to the next; only the latest steering's plan runs.
-   * A failed plan leaves the passage unplanned, as before plans, and is asked again next time unless it offered something.
+   * A failed plan leaves the passage unplanned, as before plans, and is asked again next time.
    */
   function startPlan(prefix: string, steering: Steering) {
     for (const [other, { isDone, controller }] of plans) {
@@ -77,7 +76,6 @@ export function liveSourceFor(station?: Station, turns: () => Turn[] = () => [],
     const argument = turns().flatMap(({ claim }) => (claim ? [claim] : []))
     const plan: Plan = {
       move: moveOf(argument.length, steering.controls),
-      candidates: [],
       isDone: false,
       controller: new AbortController(),
       waiters: new Set(),
@@ -91,7 +89,7 @@ export function liveSourceFor(station?: Station, turns: () => Turn[] = () => [],
     }
     ;(async () => {
       try {
-        const candidates = planPassage({
+        plan.candidate = await planPassage({
           station,
           argument,
           offered: [...offered],
@@ -101,13 +99,9 @@ export function liveSourceFor(station?: Station, turns: () => Turn[] = () => [],
           move: plan.move,
           signal: plan.controller.signal,
         })
-        for await (const candidate of candidates) {
-          plan.candidates.push(candidate)
-          changed()
-        }
       } catch (error) {
         if ((error as Error).name !== "AbortError") console.error(error)
-        if (!plan.candidates.length && plans.get(planKey) === plan) plans.delete(planKey)
+        if (plans.get(planKey) === plan) plans.delete(planKey)
       } finally {
         plan.isDone = true
         changed()
@@ -116,15 +110,15 @@ export function liveSourceFor(station?: Station, turns: () => Turn[] = () => [],
     return plan
   }
 
-  /** The candidate at the place reroll reached, once planned, or the last one if the plan offered fewer; undefined if it offered none. */
+  /** The plan's claim once planned; undefined if it offered none. */
   async function candidateOf(plan: Plan, signal: AbortSignal) {
-    while (plan.candidates.length <= index && !plan.isDone) {
+    while (!plan.isDone) {
       signal.throwIfAborted()
       await new Promise<void>((resolve, reject) => {
         plan.waiters.add(resolve)
         signal.addEventListener("abort", () => reject(signal.reason), { once: true })
       })
     }
-    return plan.candidates[Math.min(index, plan.candidates.length - 1)]
+    return plan.candidate
   }
 }

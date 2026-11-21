@@ -54,27 +54,34 @@ test("each continuation writes a planned claim and its outline, planned once per
         { label: "so", text: "students choose knowingly" },
       ],
     },
-    index: 0,
-    count: 3,
+    isDone: true,
   })
 })
 
-test("reroll steps through the candidates, then plans new ones that offer none of them again", async () => {
-  const requests = replyWith([PLAN, " One.", " Two.", PLAN.replaceAll("must", "shall"), " Three."])
+test("reroll drops the claim, and the next continuation plans one that avoids every claim dropped", async () => {
+  const requests = replyWith([PLAN, " One.", PLAN.replaceAll("must", "shall"), " Two.", PLAN.replaceAll("must", "will"), " Three."])
   const source = liveSourceFor("C", () => TURNS)
   await continue_(source)
   source.reroll()
-  assert.equal(source.plan().index, 1)
-  await continue_(source)
-  assert.equal(requests.length, 3)
-  assert.match(requests[2][1].content, /^CLAIM TO MAKE\nTutors must be paid/)
-  assert.equal(source.claim(), "diagnose: Tutors must be paid for the hours they spend on crits.")
-  source.reroll()
-  source.reroll()
   assert.equal(source.plan(), undefined)
   await continue_(source)
-  assert.match(requests[3][1].content, /\n\nOFFERED BEFORE\n- Every studio must publish its budget to its students\.\n- Tutors must be paid/)
-  assert.match(requests[4][1].content, /^CLAIM TO MAKE\nEvery studio shall publish/)
+  assert.match(requests[2][1].content, /\n\nOFFERED BEFORE\n- Every studio must publish its budget to its students\.\n\n/)
+  assert.match(requests[3][1].content, /^CLAIM TO MAKE\nEvery studio shall publish/)
+  assert.equal(source.claim(), "diagnose: Every studio shall publish its budget to its students.")
+  source.reroll()
+  await continue_(source)
+  assert.match(requests[4][1].content, /\n\nOFFERED BEFORE\n- Every studio must publish its budget to its students\.\n- Every studio shall publish/)
+  assert.match(requests[5][1].content, /^CLAIM TO MAKE\nEvery studio will publish/)
+})
+
+test("a claim prepared ahead is the one the continuation with the same steering writes", async () => {
+  const requests = replyWith([PLAN, " One."])
+  const source = liveSourceFor("C", () => TURNS)
+  source.prepare("Design education must answer to students.", { leads: [], controls: [] })
+  assert.equal(source.plan().isDone, false)
+  await continue_(source)
+  assert.equal(requests.length, 2)
+  assert.match(requests[1][1].content, /^CLAIM TO MAKE\nEvery studio must publish/)
 })
 
 test("a move control overrides the arc", async () => {

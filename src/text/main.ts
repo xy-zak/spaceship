@@ -28,6 +28,7 @@ import { simulatedRealization } from "./simulated-realization.ts"
 import { isSoundOn, setSoundOn, startSound } from "./sound/engine.ts"
 import { sounds } from "./sound/sounds.ts"
 import { showStatus } from "./status-line.ts"
+import { showSteps, type Phase, type Step } from "./steps.ts"
 import { storyLayoutOf, type StoryLayout } from "./story-layout.ts"
 import { domPointAt, textOffsetOf } from "./text-offsets.ts"
 import { createTextStream, type Seed, type Steering } from "./text-stream.ts"
@@ -46,10 +47,13 @@ const MAX_RETRY_MS = 16000
 const DRAG_SPEED_FULL = 1.2
 /** Tray controls sit flush with each other and the screen's bottom edge, so their brackets are drawn just inside them. */
 const TRAY_PAD_PX = -1
+/** The main knob's left edge sits this far right of the caret, so it never covers the last word; a drag is read back from its center. */
+const KNOB_GAP_PX = 4
 
 const element = $("#text")
 const handle = $<HTMLButtonElement>("#pointer")
 const statusElement = $("#status")
+const stepsElement = $("#steps")
 const soundToggle = $<HTMLButtonElement>("#sound-toggle")
 const extraLink = $<HTMLAnchorElement>("#extra-link")
 const turnElement = $<HTMLOutputElement>("#turn")
@@ -93,6 +97,7 @@ const futureKnobs = createFutureKnobs({
   onChange: invalidateFuture,
   onChoosing: (choosing) => {
     isChoosing = choosing
+    showFocus()
     // a choice rewrites the future anyway, and on one Ollama slot the menu would wait behind the continuation
     if (choosing) stream.stop()
     else restartDwell()
@@ -128,6 +133,8 @@ let seededTurns: Turn[] = []
 let wordLimit: number | null = null
 let postLive: (tail: string, steering: string[], claim?: string) => void = () => {}
 let isCommitting = false
+/** Where the turn is: Enter moves it from steering to the plan, to writing, and on to the next turn. */
+let phase: Phase = "steer"
 
 startSound()
 showSoundToggle()
@@ -153,13 +160,14 @@ makeDraggable(handle, {
   onDrag: (point) => {
     handle.toggleAttribute("data-dragging", true)
     const before = shownCount
-    moveTo(point)
+    moveTo({ x: point.x - knobOffset(), y: point.y })
     discardIfBehindRest()
     soundWordsCrossed(before, point)
   },
   onDrop: () => {
     if (handle.hasAttribute("data-dragging")) sounds.knobRelease(circleOf(handle).center.x)
     handle.removeAttribute("data-dragging")
+    centerKnobLine()
     lastDrag = undefined
   },
 })
@@ -178,9 +186,10 @@ createPointer({
 // Enter stands in for the panel's OK, r for its reroll
 addEventListener("keydown", (event) => {
   if (event.repeat || (event.target as Element).closest("dialog, #tray")) return
-  if (event.key === "Enter" && station) passTurn(station)
+  if (event.key === "Enter") advance()
   if (event.key === "r" && !event.ctrlKey && !event.metaKey && !event.altKey) reroll()
 })
+document.addEventListener("selectionchange", showFocus)
 if (station) followTurns(station)
 else start({ head: "", text: OPENING, floorWords: countWords(OPENING) })
 
@@ -238,10 +247,21 @@ function moveTo({ x, y }: Point) {
     caret = clamped
     point = pointAt(clamped, metricsOf())
   }
-  handle.style.translate = centeredAt(point, handle.offsetWidth)
+  handle.style.translate = centeredAt({ x: point.x + knobOffset(), y: point.y }, handle.offsetWidth)
   planCard.placeAt({ x: left + scrollX, y: point.y + parseFloat(style.lineHeight) / 2 }, width)
+  // scrolling under a drag would move the text under the pointer, and the knob with it
+  if (!handle.hasAttribute("data-dragging")) centerKnobLine()
   render()
   restartRest()
+}
+
+function knobOffset() {
+  return handle.offsetWidth / 2 + KNOB_GAP_PX
+}
+
+/** Scrolls the knob's line to the middle of the window, leaving room under it for the plan. */
+function centerKnobLine() {
+  scrollTo({ top: pointAt(caret, metricsOf()).y - innerHeight / 2, behavior: "smooth" })
 }
 
 /** The knob rests once it has not moved for `DWELL_MS`; the text past it is then generated again if a drag back discarded it. */
@@ -321,6 +341,10 @@ function report() {
     pinned: futureKnobs.pinnedCount(),
     turn: station && seededTurns.length ? { words: wordsOf(splitTail(seededTurns, tail()).fresh).length, limit: wordLimit } : undefined,
   })
+  const done = new Set<Step>()
+  if (futureKnobs.count()) done.add("routes")
+  if (attention.leads().length) done.add("terms")
+  showSteps(stepsElement, phase, done, seedWords <= countWords(OPENING))
   // clipped to the server's limits, which would refuse the whole post
   postLive(
     tail(),
@@ -351,6 +375,13 @@ function restartDwell() {
   const dwell = ++dwellCount
   dwellTimer = setTimeout(() => {
     if (isChoosing) return
+    // nothing is written before its plan: steering has the model to itself for menus and boxes, and a steering change re-plans
+    if (phase === "steer") {
+      futureKnobs.preload()
+      attention.prefetch()
+      return
+    }
+    if (phase === "plan") return isFutureStale && planNext()
     if (isFutureStale) regenerateFuture()
     else topUp()
     afterStreaming(() => {
@@ -369,11 +400,48 @@ function afterStreaming(request: () => void) {
   stream.streaming().then(request)
 }
 
-/** The next planned claim, or in simulated mode another continuation, written from the knob on. */
-function reroll() {
+/**
+ * Moves the turn on: the steering is set, so the claim is planned; the plan is chosen, so the text is written; the text is done, so the turn passes.
+ * Without a station the steps start again, after the text shown.
+ */
+function advance() {
   if (isChoosing || isCommitting) return
+  if (phase === "steer") {
+    phase = "plan"
+    planNext()
+  } else if (phase === "plan") {
+    phase = "write"
+    regenerateFuture()
+  } else if (station) return passTurn(station)
+  else {
+    phase = "steer"
+    liveSource?.reroll()
+    seedWords = shownCount ?? seedWords
+    stream.truncate(seedWords)
+  }
+  showFocus()
+  report()
+}
+
+/** In the plan, another claim; while writing, the text past the knob written again (in simulated mode, another continuation). */
+function reroll() {
+  if (isChoosing || isCommitting || phase === "steer") return
+  if (phase === "write") return regenerateFuture()
   liveSource?.reroll()
-  regenerateFuture()
+  planNext()
+}
+
+/** Plans the claim for the steering as it is now, ahead of writing. */
+function planNext() {
+  isFutureStale = false
+  liveSource?.prepare(shownText, steering())
+}
+
+/** Fades all but what has the reader's attention: a knob choosing its route, words being selected, or the plan being chosen. */
+function showFocus() {
+  const selection = getSelection()
+  const isSelecting = selection !== null && !selection.isCollapsed && element.contains(selection.anchorNode)
+  document.body.dataset.focus = isChoosing ? "choosing" : isSelecting ? "selecting" : phase === "plan" ? "plan" : ""
 }
 
 function regenerateFuture() {
@@ -381,7 +449,7 @@ function regenerateFuture() {
   restCount = shownCount ?? 0
   stream.truncate(restCount)
   const words = wordsToWrite()
-  if (words > 0) stream.generate("steering changed", steering(), words)
+  if (words > 0 && phase === "write") stream.generate("steering changed", steering(), words)
 }
 
 /** How many words a continuation from the end of the text writes: `FUTURE_WORDS`, or fewer once the word limit is that close. */
@@ -406,7 +474,7 @@ function scheduleTopUp() {
 
 function topUp() {
   // a stale future is regenerated once the dwell ends, so topping it up would be thrown away
-  if (isRegenerationHeld || isChoosing || isFutureStale || stream.activity().isGenerating || performance.now() < retryAt) return
+  if (phase !== "write" || isRegenerationHeld || isChoosing || isFutureStale || stream.activity().isGenerating || performance.now() < retryAt) return
   const words = countWords(stream.text)
   const wanted = wordsToWrite()
   if (words - (shownCount ?? 0) >= FUTURE_WORDS || wanted <= 0) return

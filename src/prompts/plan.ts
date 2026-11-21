@@ -40,20 +40,17 @@ export const KINDS_FOR: Record<string, Kind[]> = {
 }
 /** Bank entries per plan, each on another theme: enough to choose from, few enough for a 4k context. */
 export const SOURCES = 6
-/** Claims offered per plan; reroll steps through them, then asks for new ones. */
-export const CANDIDATES = 3
 /** Thinking models spend these tokens on reasoning too. */
 export const REQUEST = { temperature: 0.7, maxTokens: 1500 }
 /** Enough of the manifesto's end to see where its last sentence stops. */
 const LAST_WORDS = 80
 
 const RULES = [
-  "Each claim does the move's job, serves the thesis, and follows from the argument's last claim.",
-  "The claims differ: each takes another side, subject or stakeholder, so a reader has a real choice between them.",
-  "Each says something the argument does not say yet: never repeat or reword an earlier claim, or one offered before.",
-  'Each is concrete and arguable: it says who must do what, naming a studio, a tutor, a student, a brief, a crit, a budget, a building or a partner, and a reader could disagree with it. No imagery and no "not".',
-  "Ground each in a different one of the sources below, arguing from the case given with it. Their facts and figures are true: use them, invent none, and say them in your own words.",
-  "Key phrases, when given, are what the claims are about. Controls, when given, set their stance and focus; a strong control decides them.",
+  "The claim does the move's job, serves the thesis, and follows from the argument's last claim.",
+  "It says something the argument does not say yet: never repeat or reword an earlier claim, or one offered before.",
+  'It is concrete and arguable: it says who must do what, naming a studio, a tutor, a student, a brief, a crit, a budget, a building or a partner, and a reader could disagree with it. No imagery and no "not".',
+  "Ground it in one of the sources below, arguing from the case given with it. Their facts and figures are true: use them, invent none, and say them in your own words.",
+  "Key phrases, when given, are what the claim is about. Controls, when given, set its stance and focus; a strong control decides them.",
 ]
 
 /** The parser in `text/live-plan.ts` reads these labels. Naming its source first makes a small model argue from it. */
@@ -63,7 +60,7 @@ const FORMAT = [
   ...Object.entries(OUTLINE).map(([label, holds]) => `${label.toUpperCase()}: ${holds}, in at most 12 words`),
 ].join("\n")
 
-const SYSTEM = `You plan the next passage of a manifesto on design education. Writers take turns on it, each from their own lens, and each passage makes one claim that moves a single argument on. You are told the passage's move. Offer ${CANDIDATES} claims for it, each with its outline, in this form, with a blank line between them and nothing else:
+const SYSTEM = `You plan the next passage of a manifesto on design education. Writers take turns on it, each from their own lens, and each passage makes one claim that moves a single argument on. You are told the passage's move. Write one claim for it, with its outline, in this form and nothing else:
 ${FORMAT}
 
 ${bulleted(RULES)}`
