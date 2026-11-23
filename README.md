@@ -62,3 +62,13 @@ If you build on this work, please cite it as:
   note         = {Demo: \url{https://chuanqisun.github.io/spaceship/}}
 }
 ```
+
+## Fork remotes
+
+This is a fork. `origin` is [xy-zak/spaceship](https://github.com/xy-zak/spaceship) and `upstream` is [chuanqisun/spaceship](https://github.com/chuanqisun/spaceship). Pushes to `upstream` are disabled on purpose, so nothing from this fork reaches the original repo. `master` tracks `origin/master`, so a plain `git push` goes to the fork.
+
+- Pull upstream changes: `git fetch upstream && git merge upstream/master`
+- Re-enable pushing to upstream: `git remote set-url --push upstream https://github.com/chuanqisun/spaceship`
+- Disable it again: `git remote set-url --push upstream DISABLED`
+
+The remote setup lives in your local `.git/config`, so a fresh clone needs `git remote add upstream https://github.com/chuanqisun/spaceship` and the disable command again.
